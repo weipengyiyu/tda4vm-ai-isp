@@ -4,14 +4,11 @@ include $(PRELUDE)
 TARGET      := ti_imaging_sensordrv
 TARGETTYPE  := library
 CSOURCES    := $(call all-c-files)
-CSOURCES    += imx390_21901/iss_sensor_imx390.c
-# CSOURCES    += ar0233/iss_sensor_ar0233.c
-# CSOURCES    += ar0820/iss_sensor_ar0820.c
-CSOURCES    += ub9xx_raw_test_pattern/iss_sensor_raw_testpat.c
-# CSOURCES    += ub9xx_yuv_test_pattern/iss_sensor_testpat.c
-# CSOURCES    += gw_ar0233_yuv/iss_sensor_gw_ar0233.c
-CSOURCES    += imx728/iss_sensor_imx728.c
+
 CSOURCES    += ovx3c/iss_sensor_ovx3c.c
+# CSOURCES    += sc2210/iss_sensor_sc2210.c
+CSOURCES    += sc2210/iss_sensor_sc2210_wdr.c
+CSOURCES    += imx728/iss_sensor_imx728.c
 
 IDIRS       += $(HOST_ROOT)/sensor_drv/include
 IDIRS       += $(APP_UTILS_PATH)/utils/remote_service/include

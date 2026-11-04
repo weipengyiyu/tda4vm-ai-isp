@@ -62,6 +62,8 @@
 
 #include "app_viss_module.h"
 
+#define ENABLE_WDR 0
+
 static vx_status configure_viss_params(vx_context context, VISSObj *vissObj, SensorObj *sensorObj)
 {
     vx_status status = VX_SUCCESS;
@@ -104,7 +106,6 @@ static vx_status configure_viss_params(vx_context context, VISSObj *vissObj, Sen
     return status;
 }
 
-#if 0
 static vx_status configure_dcc_params(vx_context context, VISSObj *vissObj, SensorObj *sensorObj)
 {
     vx_status status = VX_SUCCESS;
@@ -115,7 +116,11 @@ static vx_status configure_dcc_params(vx_context context, VISSObj *vissObj, Sens
         uint8_t * dcc_buf;
         vx_map_id dcc_buf_map_id;
 
+        #if ENABLE_WDR
+        dcc_buff_size = appIssGetDCCSizeVISS(sensorObj->sensor_name, 1);
+        #else
         dcc_buff_size = appIssGetDCCSizeVISS(sensorObj->sensor_name, sensorObj->sensor_wdr_enabled);
+        #endif
         if(dcc_buff_size < 0)
         {
             printf("Invalid DCC size for VISS \n");
@@ -125,6 +130,7 @@ static vx_status configure_dcc_params(vx_context context, VISSObj *vissObj, Sens
         vissObj->dcc_config = vxCreateUserDataObject(context, "dcc_viss", dcc_buff_size, NULL);
         status = vxGetStatus((vx_reference)vissObj->dcc_config);
 
+        // printf("[VISS-MODULE] DCC size for VISS! dcc_buff_size = %d, sensor_name = %s, wdr_mode = %d, sensor_dcc_id = %d \n", dcc_buff_size, sensorObj->sensor_name, sensorObj->sensor_wdr_enabled, sensorObj->sensorParams.dccId);
         if(status == VX_SUCCESS)
         {
             vxSetReferenceName((vx_reference)vissObj->dcc_config, "viss_node_dcc_config");
@@ -140,7 +146,11 @@ static vx_status configure_dcc_params(vx_context context, VISSObj *vissObj, Sens
                     0
                 );
 
+            #if ENABLE_WDR
+            status = appIssGetDCCBuffVISS(sensorObj->sensor_name, 1, dcc_buf, dcc_buff_size);
+            #else
             status = appIssGetDCCBuffVISS(sensorObj->sensor_name, sensorObj->sensor_wdr_enabled, dcc_buf, dcc_buff_size);
+            #endif
             if(status != VX_SUCCESS)
             {
                 printf("[VISS-MODULE] Error getting DCC buffer! \n");
@@ -161,7 +171,7 @@ static vx_status configure_dcc_params(vx_context context, VISSObj *vissObj, Sens
 
     return status;
 }
-#endif
+
 
 static vx_status create_viss_outputs(vx_context context, VISSObj *vissObj, SensorObj *sensorObj, uint32_t num_cameras_enabled)
 {
@@ -299,10 +309,10 @@ vx_status app_init_viss(vx_context context, VISSObj *vissObj, SensorObj *sensorO
 
     status = configure_viss_params(context, vissObj, sensorObj);
 
-    // if(status == VX_SUCCESS)
-    // {
-    //     status = configure_dcc_params(context, vissObj, sensorObj);
-    // }
+    if(status == VX_SUCCESS)
+    {
+        status = configure_dcc_params(context, vissObj, sensorObj);
+    }
 
     if(status == VX_SUCCESS)
     {
@@ -353,11 +363,59 @@ void app_delete_viss(VISSObj *vissObj)
 vx_status app_create_graph_viss(vx_graph graph, VISSObj *vissObj, vx_object_array raw_image_arr, const char *target)
 {
     vx_status status = VX_SUCCESS;
+    
 
     tivx_raw_image raw_image = (tivx_raw_image)vxGetObjectArrayItem(raw_image_arr, 0);
     vx_user_data_object h3a_stats = (vx_user_data_object)vxGetObjectArrayItem(vissObj->h3a_stats_arr, 0);
     vx_image output_img = (vx_image)vxGetObjectArrayItem(vissObj->output_arr, 0);
 
+#if 0
+    // ========== 手动配置 ae_awb_params ==========
+    vx_context context = vxGetContext((vx_reference)graph);
+    tivx_ae_awb_params_t ae_params;
+    memset(&ae_params, 0, sizeof(ae_params));
+
+    // 设置基本参数
+    ae_params.exposure_time = 100;      // 曝光时间 (us)
+    ae_params.analog_gain = 256;          // 模拟增益 (1.0x = 256)
+    ae_params.digital_gain = 256;         // 数字增益 (1.0x = 256)
+
+    // 白平衡增益 (RG, GG, BG, GG)
+    ae_params.wb_gains[0] = 356;  // R
+    ae_params.wb_gains[1] = 256;  // G
+    ae_params.wb_gains[2] = 456;  // B
+    ae_params.wb_gains[3] = 256;  // (unused)
+
+    // 关键！必须设置为有效
+    ae_params.ae_valid = 1;
+    ae_params.ae_converged = 1;
+    ae_params.awb_valid = 1;
+    ae_params.awb_converged = 1;
+    ae_params.h3a_source_data = TIVX_VPAC_VISS_H3A_IN_LSC;
+
+    // ========== 创建 User Data Object 并写入数据 ==========
+    vx_user_data_object ae_awb_result = vxCreateUserDataObject(
+        context, 
+        "tivx_ae_awb_params_t", 
+        sizeof(tivx_ae_awb_params_t), 
+        &ae_params  // ← 可以直接传入初始值！
+    );
+
+    if (vxGetStatus((vx_reference)ae_awb_result) != VX_SUCCESS)
+    {
+        printf("[VISS-MODULE] Unable to create ae_awb_result object! \n");
+        return VX_FAILURE;
+    }
+
+    vissObj->node = tivxVpacVissNode(
+                                graph,
+                                vissObj->config,
+                                ae_awb_result,
+                                vissObj->dcc_config,
+                                raw_image, NULL, NULL,
+                                output_img, NULL, NULL,
+                                h3a_stats, NULL, NULL, NULL);
+#else
     vissObj->node = tivxVpacVissNode(
                                 graph,
                                 vissObj->config,
@@ -366,6 +424,7 @@ vx_status app_create_graph_viss(vx_graph graph, VISSObj *vissObj, vx_object_arra
                                 raw_image, NULL, NULL,
                                 output_img, NULL, NULL,
                                 h3a_stats, NULL, NULL, NULL);
+#endif
 
     tivxReleaseRawImage(&raw_image);
     vxReleaseImage(&output_img);

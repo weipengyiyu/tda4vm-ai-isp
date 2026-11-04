@@ -126,6 +126,7 @@ int32_t IssSensor_gw_ar0233_Init();
 
 int32_t IssSensor_IMX728_Init();
 int32_t IssSensor_OVX3C_Init();
+int32_t IssSensor_SC2210_Init();
 
 #endif /* End of ISS_SENSORS_PRIV_H_*/
 

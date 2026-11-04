@@ -106,7 +106,8 @@ static vx_status configure_capture_params(vx_context context, CaptureObj *captur
             captureObj->params.timeoutInitial = 500;
         }
         captureObj->params.numInst  = num_capt_instances;
-        captureObj->params.numCh    = sensorObj->num_cameras_enabled;
+        // captureObj->params.numCh    = sensorObj->num_cameras_enabled;
+        captureObj->params.numCh    = sensorObj->num_cameras_enabled * 3; 
 
         for(id = 0; id < num_capt_instances; id++)
         {
@@ -154,6 +155,7 @@ static vx_status configure_capture_params(vx_context context, CaptureObj *captur
 
         captureObj->config = vxCreateUserDataObject(context, "tivx_capture_params_t", sizeof(tivx_capture_params_t), &captureObj->params);
         status = vxGetStatus((vx_reference)captureObj->config);
+        printf("[CAPTURE_MODULE] - vcNum=%d, id=%d, ch=%d \n", vcNum, id, ch);
     }
 
     if(status != VX_SUCCESS)
@@ -168,13 +170,18 @@ static vx_status configure_capture_params(vx_context context, CaptureObj *captur
     return status;
 }
 
+
 static vx_status create_capture_output(vx_context context, CaptureObj *captureObj, SensorObj *sensorObj,  int32_t bufq_depth)
 {
     vx_status status = VX_SUCCESS;
 
     IssSensor_CreateParams *sensorParams = &sensorObj->sensorParams;
     vx_int32 q;
-
+    vx_int32 i;
+    for (i = 0; i < sensorObj->sensorParams.sensorInfo.raw_params.num_exposures; i++)
+    {
+        printf("[CAPTURE-MODULE]  exp_idx = %d, pixel_container = %d, msb = %d \n", i, sensorParams->sensorInfo.raw_params.format[i].pixel_container, sensorParams->sensorInfo.raw_params.format[i].msb);
+    }
     if(0 == captureObj->capture_format)
     {
         tivx_raw_image raw_image = tivxCreateRawImage(context, &sensorParams->sensorInfo.raw_params);
@@ -184,7 +191,8 @@ static vx_status create_capture_output(vx_context context, CaptureObj *captureOb
         {
             for(q = 0; q < bufq_depth; q++)
             {
-                captureObj->raw_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image, sensorObj->num_cameras_enabled);
+                // captureObj->raw_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image, sensorObj->num_cameras_enabled);
+                captureObj->raw_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image, sensorObj->num_cameras_enabled * 3);
                 status = vxGetStatus((vx_reference)captureObj->raw_image_arr[q]);
                 if(status != VX_SUCCESS)
                 {

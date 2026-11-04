@@ -62,7 +62,6 @@
 
 #include "app_aewb_module.h"
 
-#if 0
 static vx_status configure_dcc(vx_context context, AEWBObj *aewbObj, SensorObj *sensorObj)
 {
     vx_status status = VX_SUCCESS;
@@ -76,9 +75,9 @@ static vx_status configure_dcc(vx_context context, AEWBObj *aewbObj, SensorObj *
         dcc_buff_size = appIssGetDCCSize2A(sensorObj->sensor_name, sensorObj->sensor_wdr_enabled);
         if(dcc_buff_size < 0)
         {
-            printf("[AEWB-MODULE] Invalid DCC size for 2A! \n");
             return VX_FAILURE;
         }
+        printf("[AEWB-MODULE] DCC size for 2A! sensor_name = %s, wdr_mode = %d, dcc_buff_size = %d \n", sensorObj->sensor_name, sensorObj->sensor_wdr_enabled, dcc_buff_size);
         aewbObj->dcc_config = vxCreateUserDataObject(context, "dcc_2a", dcc_buff_size, NULL);
         status = vxGetStatus((vx_reference)aewbObj->dcc_config);
 
@@ -112,12 +111,12 @@ static vx_status configure_dcc(vx_context context, AEWBObj *aewbObj, SensorObj *
     else
     {
         aewbObj->dcc_config = NULL;
-        printf("[AEWB-MODULE] Sensor DCC is disabled \n");
+        printf("[AEWB-MODULE] 20260313 Sensor DCC is disabled \n");
     }
 
     return status;
 }
-#endif
+
 
 static vx_status configure_aewb(vx_context context, AEWBObj *aewbObj, SensorObj *sensorObj, uint32_t starting_channel, uint32_t num_cameras_enabled)
 {
@@ -249,7 +248,7 @@ vx_status app_init_aewb(vx_context context, AEWBObj *aewbObj, SensorObj *sensorO
 {
     vx_status status = VX_SUCCESS;
 
-    // status = configure_dcc(context, aewbObj, sensorObj);
+    status = configure_dcc(context, aewbObj, sensorObj);
 
     if(status == VX_SUCCESS)
     {

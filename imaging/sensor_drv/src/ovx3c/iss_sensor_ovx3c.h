@@ -71,7 +71,7 @@
 #define OVX3C_META_HEIGHT_AFTER (4)
 
 #include "ox03c10_linear_4lane_60fps_2m_12bit_init_all.h"
-#include "ox03c10_built_in_4lane_60fps_2m_12bit_init_all.h"
+#include "ox03c10_linear_4lane_30fps_2m_12bit_init_all.h"
 
 /*******************************************************************************
  *  Defines
@@ -81,10 +81,14 @@
 #define OVX3C_CHIP_ID_REG_VAL                (0x15)
 
 #define ISS_SENSOR_OVX3C_DEFAULT_EXP_RATIO     (128U)
-
-#define ISS_SENSOR_OVX3C_FEATURES      (ISS_SENSOR_FEATURE_MANUAL_EXPOSURE|   \
-                                         ISS_SENSOR_FEATURE_LINEAR_MODE| \
-                                         ISS_SENSOR_FEATURE_DCC_SUPPORTED)
+/*    (ISS_SENSOR_FEATURE_MANUAL_EXPOSURE|   \
+                                         ISS_SENSOR_FEATURE_MANUAL_GAIN|       \
+                                         ISS_SENSOR_FEATURE_LINEAR_MODE|       \
+                                         ISS_SENSOR_FEATURE_COMB_COMP_WDR_MODE|       \
+                                         ISS_SENSOR_FEATURE_DCC_SUPPORTED)*/
+#define ISS_SENSOR_OVX3C_FEATURES      (ISS_SENSOR_FEATURE_MANUAL_EXPOSURE |   \
+                                        ISS_SENSOR_FEATURE_MANUAL_GAIN |       \
+                                        ISS_SENSOR_FEATURE_LINEAR_MODE)
 
 #define ISS_OVX3C_GAIN_TBL_STEP_SIZE           (100U)
 #define ISS_OVX3C_GAIN_TBL_STARTOFFSET         (10U)

@@ -103,14 +103,14 @@ static IssSensor_CreateParams  OVX3CCreatePrms = {
         },
         ISS_SENSOR_OVX3C_FEATURES,              /*features*/
         ALGORITHMS_ISS_AEWB_MODE_NONE,          /*aewbMode ALGORITHMS_ISS_AEWB_MODE_NONE ALGORITHMS_ISS_AEWB_MODE_AEWB*/
-        60,                                     /*fps*/
+        30,                                     /*fps 60:ox03c10_linear_4lane_60fps_2m_12bit_init_all; 30:ox03c10_linear_4lane_30fps_2m_12bit_init_all*/
         4,                                      /*numDataLanes*/
         {1, 2, 3, 4},                           /*dataLanesMap*/
-        {1, 1, 1, 1},                           /*dataLanesPolarity*/
-        CSIRX_LANE_BAND_SPEED_720_TO_800_MBPS, /*csi_laneBandSpeed 1920*1080*60*16*1.5/4 = 746,496,000 bits/秒;1 Mbps = 1,000,000 bits/s 746.496 Mbps */
+        {0, 0, 0, 0},                           /*dataLanesPolarity*/
+        CSIRX_LANE_BAND_SPEED_320_TO_360_MBPS, /*CSIRX_LANE_BAND_SPEED_320_TO_360_MBPS;CSIRX_LANE_BAND_SPEED_720_TO_800_MBPS:csi_laneBandSpeed 1920*1080*60*16*1.5/4 = 746,496,000 bits/秒;1 Mbps = 1,000,000 bits/s 746.496 Mbps */
     },
     1,                                  /*numChan 这里跟i2cAddrSensor有关联*/
-    5233,                                /*dccId 5233*/
+    333,                                /*dccId 333*/
 };
 
 static IssSensorFxns           Ovx3cSensorFxns = {
@@ -279,10 +279,14 @@ static int32_t OVX3C_Config(uint32_t chId, void *pSensorHdl, uint32_t sensor_fea
     appLogWaitMsecs(100);
 #endif
 
+    #if 1
     sensorConfigSize = sizeof(ox03c10_linear_4lane_60fps_2m_12bit_init_all) / sizeof(I2cParams);
     status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_linear_4lane_60fps_2m_12bit_init_all, sensorConfigSize);
-    // uint32_t sensorConfigSize = sizeof(ox03c10_built_in_4lane_60fps_2m_12bit_init_all) / sizeof(I2cParams);
-    // status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_built_in_4lane_60fps_2m_12bit_init_all, sensorConfigSize);
+    #else
+    sensorConfigSize = sizeof(ox03c10_linear_4lane_30fps_2m_12bit_init_all) / sizeof(I2cParams);
+    status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_linear_4lane_30fps_2m_12bit_init_all, sensorConfigSize);
+    #endif
+
     if (status != 0)
     {
         issLogPrintf("Config error : OVC3C_RunSensorConfigScript is error !!!\n");
@@ -462,34 +466,39 @@ static int32_t OVX3C_SetAeParams(void *pSensorHdl, uint32_t chId, IssSensor_Expo
 {
     int32_t status = 0;
 
-
+    printf("--------------> OVX3C_SetAeParams \n");
     return (status);
 }
 
 static int32_t OVX3C_GetDccParams(uint32_t chId, void *pSensorHdl, IssSensor_DccParams *pDccPrms)
 {
     int32_t status = 0;
+    printf("--------------> OVX3C_GetDccParams \n");
     return (status);
 }
 
 static int32_t OVX3C_GetExpParams(uint32_t chId, void *pSensorHdl, IssSensor_ExposureParams *pExpPrms)
 {
     int32_t status = 0;
+    printf("--------------> OVX3C_GetExpParams \n");
     return (status);
 }
 
 static void OVX3C_InitAewbConfig(uint32_t chId, void *pSensorHdl)
 {
+    printf("--------------> OVX3C_InitAewbConfig \n");
     return;
 }
 
 static void OVX3C_GetIspConfig (uint32_t chId, void *pSensorHdl)
 {
+    printf("--------------> OVX3C_GetIspConfig \n");
     return;
 }
 
 static void OVX3C_deinit (uint32_t chId, void *pSensorHdl)
 {
+    printf("--------------> OVX3C_deinit \n");
     return;
 }
 
@@ -577,12 +586,14 @@ static int32_t OVX3C_WriteReg(uint8_t    i2cInstId,
 static int32_t OVX3C_GetExpPrgFxn(uint32_t chId, void *pSensorHdl, IssAeDynamicParams *p_ae_dynPrms)
 {
     int32_t status = 0;
+    printf("--------------> OVX3C_GetExpPrgFxn \n");
     return (status);
 }
 
 static int32_t OVX3C_GetWBPrgFxn(uint32_t chId, void *pSensorHdl, IssAwbDynamicParams *p_awb_dynPrms)
 {
     int32_t  status = 0;
+    printf("--------------> OVX3C_GetWBPrgFxn \n");
     return (status);
 }
 
@@ -590,5 +601,6 @@ static int32_t OVX3C_SetAwbParams(void *pSensorHdl, uint32_t chId, IssSensor_Whi
 {
     int32_t status = 0;
 
+    printf("--------------> OVX3C_SetAwbParams \n");
     return (status);
 }

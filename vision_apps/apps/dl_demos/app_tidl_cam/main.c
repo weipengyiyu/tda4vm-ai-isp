@@ -67,6 +67,13 @@
 #include <VX/vx_khr_pipelining.h>
 #include <TI/video_io_kernels.h>
 #include <TI/dl_kernels.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <sys/stat.h>
 
 #include "app_common.h"
 #include "app_sensor_module.h"
@@ -82,12 +89,17 @@
 #include "app_display_module.h"
 #include "app_test.h"
 
+#if defined(A72) || defined(A53)
+#if defined(LINUX)
+/*ITT server is supported only in target mode and only on Linux*/
+#include <itt_server.h>
+#endif
+#endif
+
 #define APP_BUFFER_Q_DEPTH   (4)
 #define APP_PIPELINE_DEPTH   (7)
 
-#define Capture_Pre_C7X_Post_VISS_Display   (1)
 #define APP_WRITE_INTERMEDIATE_OUTPUTS      (1)
-#define IMGMOSAICEN                         (0)
 
 typedef struct {
 
@@ -111,6 +123,7 @@ typedef struct {
     vx_graph   graph;
 
     vx_uint32 is_interactive;
+    vx_uint32 c7x_viss_display;
     vx_uint32 test_mode;
 
     vx_uint32 num_frames_to_run;
@@ -126,12 +139,19 @@ typedef struct {
     app_perf_point_t fileio_perf;
     app_perf_point_t draw_perf;
 
+    int32_t enable_ldc;
+    int32_t enable_aewb;
+    int32_t enable_mosaic;
+
     int32_t pipeline;
 
     int32_t enqueueCnt;
     int32_t dequeueCnt;
 
     int32_t write_file;
+
+    vx_uint32 offline_enable;
+    vx_char offline_raw_dir[APP_MAX_FILE_PATH];
 
 } AppObj;
 
@@ -158,6 +178,336 @@ static void set_img_mosaic_params(AppObj *obj, ImgMosaicObj *imgMosaicObj);
 #ifndef x86_64
 static void app_draw_graphics(Draw2D_Handle *handle, Draw2D_BufInfo *draw2dBufInfo, uint32_t update_type);
 #endif
+
+static vx_status app_offline_list_raw_files(const char *dir_path, char ***out_list, vx_uint32 *out_count);
+static void app_offline_free_raw_files(char **list, vx_uint32 count);
+static vx_int32 app_offline_load_raw_to_object_array(vx_object_array raw_arr, const char *raw_file_path);
+
+#define MAX_FNAME 					  (256u)
+
+#if defined(A72) || defined(A53)
+#define _APP_DEBUG_
+#endif
+#ifdef _APP_DEBUG_
+int save_debug_images(AppObj *obj);
+#endif //_APP_DEBUG_
+static int appTidlCamUpdateVpacDcc(AppObj *obj, uint8_t* dcc_buf, uint32_t dcc_buf_size);
+
+#if defined(A72) || defined(A53)
+#if defined(LINUX)
+int appTidlCamUpdateVpacDcc(AppObj *obj, uint8_t* dcc_buf, uint32_t dcc_buf_size)
+{
+    int32_t status = 0;
+
+    status = appUpdateVpacDcc(dcc_buf, dcc_buf_size, obj->context,
+                obj->vissObj.node, 0,
+                obj->aewbObj.node, 0,
+                obj->ldcObj.node, 0
+             );
+
+    return status;
+}
+#endif
+#endif
+#ifdef _APP_DEBUG_
+static char *app_get_test_file_path()
+{
+    char *tivxPlatformGetEnv(char *env_var);
+
+    #if defined(SYSBIOS)
+    return tivxPlatformGetEnv("VX_TEST_DATA_PATH");
+    #else
+    return getenv("VX_TEST_DATA_PATH");
+    #endif
+}
+#endif //_APP_DEBUG_
+#ifdef _APP_DEBUG_
+vx_int32 write_output_image_raw(char * file_name, tivx_raw_image raw_image)
+{
+    FILE * fp = fopen(file_name, "wb");
+    vx_uint32 width, height, i;
+    vx_imagepatch_addressing_t image_addr;
+    vx_rectangle_t rect;
+    vx_map_id map_id;
+    void *data_ptr;
+    vx_uint32 num_bytes_per_pixel = 2; /*Supports only RAW12b Unpacked format*/
+    vx_uint32 num_bytes_written_to_file;
+    tivx_raw_image_format_t format;
+    vx_uint32 imgaddr_width, imgaddr_height, imgaddr_stride;
+
+    if(!fp)
+    {
+        APP_PRINTF("Unable to open file %s\n", file_name);
+        return -1;
+    }
+
+    tivxQueryRawImage(raw_image, TIVX_RAW_IMAGE_WIDTH, &width, sizeof(vx_uint32));
+    tivxQueryRawImage(raw_image, TIVX_RAW_IMAGE_HEIGHT, &height, sizeof(vx_uint32));
+    tivxQueryRawImage(raw_image, TIVX_RAW_IMAGE_FORMAT, &format, sizeof(format));
+
+    APP_PRINTF("in width =  %d\n", width);
+    APP_PRINTF("in height =  %d\n", height);
+    APP_PRINTF("in format =  %d\n", format.pixel_container);
+
+    rect.start_x = 0;
+    rect.start_y = 0;
+    rect.end_x = width;
+    rect.end_y = height;
+
+    tivxMapRawImagePatch(raw_image,
+        &rect,
+        0,
+        &map_id,
+        &image_addr,
+        &data_ptr,
+        VX_READ_ONLY,
+        VX_MEMORY_TYPE_HOST,
+        TIVX_RAW_IMAGE_PIXEL_BUFFER
+        );
+
+    if(!data_ptr)
+    {
+        APP_PRINTF("data_ptr is NULL \n");
+        fclose(fp);
+        return -1;
+    }
+    num_bytes_written_to_file = 0;
+
+    imgaddr_width  = image_addr.dim_x;
+    imgaddr_height = image_addr.dim_y;
+    imgaddr_stride = image_addr.stride_y;
+
+    for(i=0;i<imgaddr_height;i++)
+    {
+        num_bytes_written_to_file += fwrite(data_ptr, 1, imgaddr_width*num_bytes_per_pixel, fp);
+        data_ptr += imgaddr_stride;
+    }
+
+    tivxUnmapRawImagePatch(raw_image, map_id);
+
+    fflush(fp);
+    fclose(fp);
+    APP_PRINTF("%d bytes written to %s\n", num_bytes_written_to_file, file_name);
+    return num_bytes_written_to_file;
+}
+
+vx_int32 write_h3a_image(char * file_name, vx_user_data_object out_h3a)
+{
+    FILE * fp = fopen(file_name, "wb");
+    tivx_h3a_data_t *h3a_data = NULL;
+    vx_map_id h3a_buf_map_id;
+    vx_uint8 *h3a_payload = NULL;
+    vx_uint32 h3a_size = 0;
+    if(!fp)
+    {
+        APP_PRINTF("Unable to open file %s\n", file_name);
+        return -1;
+    }
+
+    vxMapUserDataObject(
+            out_h3a,
+            0,
+            sizeof(tivx_h3a_data_t),
+            &h3a_buf_map_id,
+            (void **)&h3a_data,
+            VX_READ_ONLY,
+            VX_MEMORY_TYPE_HOST,
+            0
+        );
+
+    h3a_payload = h3a_data->data;// + 12; /*C model 12-byte header*/
+    h3a_size = fwrite(h3a_payload, 1, TIVX_VPAC_VISS_MAX_H3A_STAT_NUMBYTES, fp);
+    APP_PRINTF("%d bytes saved from H3A output buffer \n", h3a_size);
+    fflush(fp);
+    fclose(fp);
+    vxUnmapUserDataObject(out_h3a, h3a_buf_map_id);
+
+    return h3a_size;
+}
+vx_int32 write_output_image_fp(FILE * fp, vx_image out_image)
+{
+    vx_uint32 width, height;
+    vx_df_image df;
+    vx_imagepatch_addressing_t image_addr;
+    vx_rectangle_t rect;
+    vx_map_id map_id1, map_id2;
+    void *data_ptr1, *data_ptr2;
+    vx_uint32 num_bytes_per_4pixels;
+    vx_uint32 num_luma_bytes_written_to_file=0;
+    vx_uint32 num_chroma_bytes_written_to_file=0;
+    vx_uint32 num_bytes_written_to_file=0;
+    vx_uint32 imgaddr_width, imgaddr_height, imgaddr_stride;
+    int i;
+
+    vxQueryImage(out_image, VX_IMAGE_WIDTH, &width, sizeof(vx_uint32));
+    vxQueryImage(out_image, VX_IMAGE_HEIGHT, &height, sizeof(vx_uint32));
+    vxQueryImage(out_image, VX_IMAGE_FORMAT, &df, sizeof(vx_df_image));
+
+
+    if(VX_DF_IMAGE_NV12 == df)
+    {
+        num_bytes_per_4pixels = 4;
+    }
+    else if(TIVX_DF_IMAGE_NV12_P12 == df)
+    {
+        num_bytes_per_4pixels = 6;
+    }
+    else
+    {
+        num_bytes_per_4pixels = 8;
+    }
+
+    rect.start_x = 0;
+    rect.start_y = 0;
+    rect.end_x = width;
+    rect.end_y = height;
+
+    vxMapImagePatch(out_image,
+        &rect,
+        0,
+        &map_id1,
+        &image_addr,
+        &data_ptr1,
+        VX_WRITE_ONLY,
+        VX_MEMORY_TYPE_HOST,
+        VX_NOGAP_X
+        );
+
+    if(!data_ptr1)
+    {
+        printf("data_ptr1 is NULL \n");
+        return -1;
+    }
+
+    imgaddr_width  = image_addr.dim_x;
+    imgaddr_height = image_addr.dim_y;
+    imgaddr_stride = image_addr.stride_y;
+    printf("imgaddr_width = %d \n", imgaddr_width);
+    printf("imgaddr_height = %d \n", imgaddr_height);
+    printf("imgaddr_stride = %d \n", imgaddr_stride);
+    printf("width = %d \n", width);
+    printf("height = %d \n", height);
+
+    num_luma_bytes_written_to_file = 0;
+
+    for(i=0;i<height;i++)
+    {
+        num_luma_bytes_written_to_file  += fwrite(data_ptr1, 1, width*num_bytes_per_4pixels/4, fp);
+        data_ptr1 += imgaddr_stride;
+    }
+    vxUnmapImagePatch(out_image, map_id1);
+
+    fflush(fp);
+
+
+    if(VX_DF_IMAGE_NV12 == df || TIVX_DF_IMAGE_NV12_P12 == df)
+    {
+        vxMapImagePatch(out_image,
+            &rect,
+            1,
+            &map_id2,
+            &image_addr,
+            &data_ptr2,
+            VX_WRITE_ONLY,
+            VX_MEMORY_TYPE_HOST,
+            VX_NOGAP_X
+            );
+
+        if(!data_ptr2)
+        {
+            printf("data_ptr2 is NULL \n");
+            return -1;
+        }
+
+        imgaddr_width  = image_addr.dim_x;
+        imgaddr_height = image_addr.dim_y;
+        imgaddr_stride = image_addr.stride_y;
+
+        num_chroma_bytes_written_to_file = 0;
+        for(i=0;i<imgaddr_height/2;i++)
+        {
+            num_chroma_bytes_written_to_file  += fwrite(data_ptr2, 1, imgaddr_width*num_bytes_per_4pixels/4, fp);
+            data_ptr2 += imgaddr_stride;
+        }
+
+        fflush(fp);
+
+        vxUnmapImagePatch(out_image, map_id2);
+    }
+
+    num_bytes_written_to_file = num_luma_bytes_written_to_file + num_chroma_bytes_written_to_file;
+    printf("Written %d bytes \n", num_bytes_written_to_file);
+
+    return num_bytes_written_to_file;
+}
+vx_int32 write_output_image_nv12_8bit(char * file_name, vx_image out_nv12)
+{
+    FILE * fp = fopen(file_name, "wb");
+    if(!fp)
+    {
+        APP_PRINTF("Unable to open file %s\n", file_name);
+        return -1;
+    }
+    vx_uint32 len1 = write_output_image_fp(fp, out_nv12);
+    fclose(fp);
+    APP_PRINTF("%d bytes written to %s\n", len1, file_name);
+    return len1;
+}
+int save_debug_images(AppObj *obj)
+{
+    int num_bytes_io = 0;
+    static int file_index = 0;
+    char raw_image_fname[MAX_FNAME];
+    char yuv_image_fname[MAX_FNAME];
+    char failsafe_test_data_path[3] = "./";
+    char * test_data_path = app_get_test_file_path();
+    struct stat s;
+
+    if(NULL == test_data_path)
+    {
+        printf("Test data path is NULL. Defaulting to current folder \n");
+        test_data_path = failsafe_test_data_path;
+    }
+
+    if (stat(test_data_path, &s))
+    {
+        printf("Test data path %s does not exist. Defaulting to current folder \n", test_data_path);
+        test_data_path = failsafe_test_data_path;
+    }
+
+    snprintf(raw_image_fname, MAX_FNAME, "%s/%s_%04d.raw", test_data_path, "img", file_index);
+    printf("RAW file name %s \n", raw_image_fname);
+    tivx_raw_image  input   = (tivx_raw_image)vxGetObjectArrayItem((vx_object_array)obj->captureObj.raw_image_arr[0], 0);
+    num_bytes_io = write_output_image_raw(raw_image_fname, input);
+    if(num_bytes_io < 0)
+    {
+        printf("Error writing to RAW file \n");
+        return VX_FAILURE;
+    }
+
+    if(obj->enable_mosaic)
+    {
+        snprintf(yuv_image_fname, MAX_FNAME, "%s/%s_%04d.yuv", test_data_path, "img_msc", file_index);
+        printf("YUV file name %s \n", yuv_image_fname);
+        num_bytes_io = write_output_image_nv12_8bit(yuv_image_fname, obj->imgMosaicObj.output_image[0]);
+        if(num_bytes_io < 0)
+        {
+            printf("Error writing to MSC NV12 file \n");
+            return VX_FAILURE;
+        }
+    }
+
+    file_index++;
+    return (file_index-1);
+}
+#endif //_APP_DEBUG_
+
+static int app_offline_cmp_strptr(const void *a, const void *b)
+{
+    const char * const *sa = (const char * const *)a;
+    const char * const *sb = (const char * const *)b;
+    return strcmp(*sa, *sb);
+}
 
 static void app_show_usage(vx_int32 argc, vx_char* argv[])
 {
@@ -310,6 +660,8 @@ static void app_set_cfg_default(AppObj *obj)
     obj->num_frames_to_write = 1;
     obj->num_frames_to_skip = 0;
 
+    obj->offline_enable = 0;
+    obj->offline_raw_dir[0] = '\0';
 }
 
 static void app_parse_cfg_file(AppObj *obj, vx_char *cfg_file_name)
@@ -359,6 +711,51 @@ static void app_parse_cfg_file(AppObj *obj, vx_char *cfg_file_name)
                 obj->sensorObj.is_interactive = obj->is_interactive;
             }
             else
+            if(strcmp(token, "c7x_viss_display")==0)
+            {
+                token = strtok(NULL, s);
+                if(token != NULL)
+                {
+                    token[strlen(token)-1]=0;
+                    obj->c7x_viss_display = atoi(token);
+                    if(obj->c7x_viss_display > 1)
+                    obj->c7x_viss_display = 1;
+                }
+            }
+            else 
+            if(strcmp(token, "enable_ldc")==0)
+            {
+                token = strtok(NULL, s);
+                if(token != NULL)
+                {
+                    obj->sensorObj.enable_ldc = atoi(token);
+                    if(obj->sensorObj.enable_ldc > 1)
+                        obj->sensorObj.enable_ldc = 1;
+                }
+            }
+            else 
+            if(strcmp(token, "enable_aewb")==0)
+            {
+                token = strtok(NULL, s);
+                if(token != NULL)
+                {
+                    obj->enable_aewb = atoi(token);
+                    if(obj->enable_aewb > 1)
+                        obj->enable_aewb = 1;
+                }
+            }
+            else
+            if(strcmp(token, "enable_mosaic")==0)
+            {
+                token = strtok(NULL, s);
+                if(token != NULL)
+                {
+                    obj->enable_mosaic = atoi(token);
+                    if(obj->enable_mosaic > 1)
+                        obj->enable_mosaic = 1;
+                }
+            }
+            else
             if(strcmp(token, "tidl_config")==0)
             {
                 token = strtok(NULL, s);
@@ -398,6 +795,29 @@ static void app_parse_cfg_file(AppObj *obj, vx_char *cfg_file_name)
                 {
                     obj->test_mode = atoi(token);
                     obj->captureObj.test_mode = atoi(token);
+                }
+            }
+            else
+            if(strcmp(token, "offline_enable")==0)
+            {
+                token = strtok(NULL, s);
+                if(token != NULL)
+                {
+                    token[strlen(token)-1]=0;
+                    obj->offline_enable = atoi(token);
+                    if(obj->offline_enable > 1)
+                        obj->offline_enable = 1;
+                }
+            }
+            else
+            if(strcmp(token, "offline_raw_dir")==0)
+            {
+                token = strtok(NULL, s);
+                if(token != NULL)
+                {
+                    token[strlen(token)-1]=0;
+                    strncpy(obj->offline_raw_dir, token, sizeof(obj->offline_raw_dir)-1);
+                    obj->offline_raw_dir[sizeof(obj->offline_raw_dir)-1] = '\0';
                 }
             }
 #ifdef APP_WRITE_INTERMEDIATE_OUTPUTS
@@ -666,6 +1086,17 @@ static vx_status app_init(AppObj *obj)
     vx_status status = VX_SUCCESS;
     app_grpx_init_prms_t grpx_prms;
 
+#if defined(A72) || defined(A53)
+#if defined(LINUX)
+/*ITT server is supported only in target mode and only on Linux*/
+    status = itt_server_init((void*)obj, (void*)save_debug_images, (void*)appTidlCamUpdateVpacDcc);
+    if(status != 0)
+    {
+        printf("Warning : Failed to initialize ITT server. Live tuning will not work \n");
+    }
+#endif
+#endif
+
     /* Create OpenVx Context */
     obj->context = vxCreateContext();
     if(status == VX_SUCCESS)
@@ -700,11 +1131,6 @@ static vx_status app_init(AppObj *obj)
     }
     APP_PRINTF("Capture init done!\n");
 
-    if(status == VX_SUCCESS)
-    {
-        status = app_init_viss(obj->context, &obj->vissObj, &obj->sensorObj, "viss_obj", obj->sensorObj.num_cameras_enabled);
-        APP_PRINTF("VISS init done! status=%d\n", status);
-    }
     /* Initialize TIDL first to get tensor I/O information from network */
     if(status == VX_SUCCESS)
     {
@@ -735,11 +1161,28 @@ static vx_status app_init(AppObj *obj)
         status = app_init_post_proc(obj->context, &obj->postProcObj, "post_proc_obj", obj->sensorObj.num_cameras_enabled, APP_BUFFER_Q_DEPTH);
         APP_PRINTF("Post Proc Init Done! \n");
     }
+
     if(status == VX_SUCCESS)
+    {
+        status = app_init_viss(obj->context, &obj->vissObj, &obj->sensorObj, "viss_obj", obj->sensorObj.num_cameras_enabled);
+        APP_PRINTF("VISS init done! status=%d\n", status);
+    }
+    if((1 == obj->enable_aewb) && (status == VX_SUCCESS))
+    {
+        status = app_init_aewb(obj->context, &obj->aewbObj, &obj->sensorObj, "aewb_obj", 0, obj->sensorObj.num_cameras_enabled);
+        APP_PRINTF("AEWB init done!\n");
+    }
+    if((obj->sensorObj.enable_ldc == 1) && (status == VX_SUCCESS))
+    {
+        status = app_init_ldc(obj->context, &obj->ldcObj, &obj->sensorObj, "ldc_obj", obj->sensorObj.num_cameras_enabled);
+        APP_PRINTF("LDC init done!\n");
+    }
+    if((obj->enable_mosaic == 1) && (status == VX_SUCCESS))
     {
         status = app_init_img_mosaic(obj->context, &obj->imgMosaicObj, "img_mosaic_obj", APP_BUFFER_Q_DEPTH);
         APP_PRINTF("Img Mosaic init done!\n");
     }
+
     if(status == VX_SUCCESS)
     {
         status = app_init_display(obj->context, &obj->displayObj, "display_obj");
@@ -779,9 +1222,22 @@ static void app_deinit(AppObj *obj)
 
     app_deinit_post_proc(&obj->postProcObj, APP_BUFFER_Q_DEPTH);
     APP_PRINTF("Post proc deinit done!\n");
+    if(1 == obj->enable_aewb)
+    {
+        app_deinit_aewb(&obj->aewbObj);
+        APP_PRINTF("AEWB deinit done!\n");
+    }
 
-    app_deinit_img_mosaic(&obj->imgMosaicObj, APP_BUFFER_Q_DEPTH);
-    APP_PRINTF("Img Mosaic deinit done!\n");
+    if(obj->sensorObj.enable_ldc == 1)
+    {
+        app_deinit_ldc(&obj->ldcObj);
+        APP_PRINTF("LDC deinit done!\n");
+    }
+    if(obj->enable_mosaic == 1)
+    {
+        app_deinit_img_mosaic(&obj->imgMosaicObj, APP_BUFFER_Q_DEPTH);
+        APP_PRINTF("Img Mosaic deinit done!\n");
+    }
 
     app_deinit_display(&obj->displayObj);
     APP_PRINTF("Display deinit done!\n");
@@ -822,6 +1278,13 @@ static void app_delete_graph(AppObj *obj)
     app_delete_post_proc(&obj->postProcObj);
     APP_PRINTF("Post Proc delete done!\n");
 
+    app_delete_aewb(&obj->aewbObj);
+    APP_PRINTF("AEWB delete done!\n");
+    if(obj->sensorObj.enable_ldc == 1)
+    {
+        app_delete_ldc(&obj->ldcObj);
+        APP_PRINTF("LDC delete done!\n");
+    }
     app_delete_img_mosaic(&obj->imgMosaicObj);
     APP_PRINTF("Img Mosaic delete done!\n");
 
@@ -850,70 +1313,129 @@ static vx_status app_create_graph(AppObj *obj)
 
     if(status == VX_SUCCESS)
     {
-        status = app_create_graph_capture(obj->graph, &obj->captureObj);
-        APP_PRINTF("Capture graph done!\n");
+        if(obj->offline_enable == 0)
+        {
+            status = app_create_graph_capture(obj->graph, &obj->captureObj);
+            APP_PRINTF("Capture graph done!\n");
+        }
+        else
+        {
+            APP_PRINTF("Offline mode enabled: skipping capture node creation\n");
+        }
     }
-    #if Capture_Pre_C7X_Post_VISS_Display
-    if(status == VX_SUCCESS)
+    if (obj->c7x_viss_display) 
     {
-        status = app_create_graph_pre_proc(obj->graph, &obj->preProcObj, obj->captureObj.raw_image_arr[0]);
-        APP_PRINTF("Pre proc graph done!\n");
+        if(status == VX_SUCCESS)
+        {
+            status = app_create_graph_pre_proc(obj->graph, &obj->preProcObj, obj->captureObj.raw_image_arr[0]);
+            APP_PRINTF("Pre proc graph done!\n");
+        }
+        APP_PRINTF("num_input_tensors=%d, num_output_tensors=%d \n", obj->tidlObj.num_input_tensors, obj->tidlObj.num_output_tensors);
+        if(status == VX_SUCCESS)
+        {
+            status = app_create_graph_tidl(obj->context, obj->graph, &obj->tidlObj, obj->preProcObj.output_tensor_arr);
+            APP_PRINTF("TIDL graph done!\n");
+        }
+        if(status == VX_SUCCESS)
+        {
+            status = app_create_graph_post_proc(obj->graph, &obj->postProcObj, obj->tidlObj.out_args_arr, obj->tidlObj.output_tensor_arr[0]);
+            // status = app_create_graph_post_proc(obj->graph, &obj->postProcObj, obj->tidlObj.out_args_arr, obj->preProcObj.output_tensor_arr[0]);
+            APP_PRINTF("Post proc graph done!\n");
+        }
+        if(status == VX_SUCCESS)
+        {
+            status = app_create_graph_viss(obj->graph, &obj->vissObj, obj->postProcObj.output_image_arr, TIVX_TARGET_VPAC_VISS1);
+            APP_PRINTF("VISS graph done!\n");
+        }
     }
-    APP_PRINTF("num_input_tensors=%d, num_output_tensors=%d \n", obj->tidlObj.num_input_tensors, obj->tidlObj.num_output_tensors);
-    if(status == VX_SUCCESS)
+    else
     {
-        status = app_create_graph_tidl(obj->context, obj->graph, &obj->tidlObj, obj->preProcObj.output_tensor_arr);
-        APP_PRINTF("TIDL graph done!\n");
+        if(status == VX_SUCCESS)
+        {
+            status = app_create_graph_viss(obj->graph, &obj->vissObj, obj->captureObj.raw_image_arr[0], TIVX_TARGET_VPAC_VISS1);
+            APP_PRINTF("VISS graph done!\n");
+        }
     }
-    if(status == VX_SUCCESS)
+    if(1 == obj->enable_aewb)
     {
-        status = app_create_graph_post_proc(obj->graph, &obj->postProcObj, obj->tidlObj.out_args_arr, obj->tidlObj.output_tensor_arr[0]);
-        // status = app_create_graph_post_proc(obj->graph, &obj->postProcObj, obj->tidlObj.out_args_arr, obj->preProcObj.output_tensor_arr[0]);
-        APP_PRINTF("Post proc graph done!\n");
-    }
-    if(status == VX_SUCCESS)
-    {
-        status = app_create_graph_viss(obj->graph, &obj->vissObj, obj->postProcObj.output_image_arr, TIVX_TARGET_VPAC_VISS1);
-        APP_PRINTF("VISS graph done!\n");
-    }
-    #else
-    if(status == VX_SUCCESS)
-    {
-        status = app_create_graph_viss(obj->graph, &obj->vissObj, obj->captureObj.raw_image_arr[0], TIVX_TARGET_VPAC_VISS1);
-        APP_PRINTF("VISS graph done!\n");
-    }
-    #endif
+        /*独立存在，如AE计算曝光值，返回imaging驱动再进行寄存器配置*/
+        if(status == VX_SUCCESS && (obj->vissObj.h3a_stats_arr != NULL ))
+        {
+            status = app_create_graph_aewb(obj->graph, &obj->aewbObj, obj->vissObj.h3a_stats_arr);
 
-    #if IMGMOSAICEN
+            APP_PRINTF("AEWB graph done!\n");
+        }
+        else {
+            APP_PRINTF("h3a_stats_arr is NULL \n");
+        }
+    }
+
     vx_int32 idx = 0;
-    /* For 2MP resolutions provide scaler node output1 to mosaic */
-    obj->imgMosaicObj.input_arr[idx++] = obj->vissObj.output_arr;
-    obj->imgMosaicObj.num_inputs = idx;
+    if(obj->sensorObj.enable_ldc == 1)
+    {
+        vx_object_array ldc_in_arr;
+        ldc_in_arr = obj->vissObj.output_arr;
+        if (status == VX_SUCCESS)
+        {
+            status = app_create_graph_ldc(obj->graph, &obj->ldcObj, ldc_in_arr, TIVX_TARGET_VPAC_LDC1);
+            APP_PRINTF("LDC graph done!\n");
+        }
+        obj->imgMosaicObj.input_arr[idx++] = obj->ldcObj.output_arr;
+        APP_PRINTF("IDX = %i!\n",idx);
+    }
+    else
+    {
+        vx_object_array mosaic_in_arr;
+        mosaic_in_arr = obj->vissObj.output_arr;
+        obj->imgMosaicObj.input_arr[idx++] = mosaic_in_arr;
+    }
+
+    vx_image display_in_image;
+    if(obj->enable_mosaic == 1)
+    {
+        obj->imgMosaicObj.num_inputs = idx;
+
+        if(status == VX_SUCCESS)
+        {
+            status = app_create_graph_img_mosaic(obj->graph, &obj->imgMosaicObj, NULL);
+            APP_PRINTF("Img Mosaic graph done!\n");
+        }
+        display_in_image = obj->imgMosaicObj.output_image[0];
+    }
+    else
+    {
+        display_in_image = (vx_image)vxGetObjectArrayItem(obj->vissObj.output_arr, 0);
+    }
 
     if(status == VX_SUCCESS)
     {
-        status = app_create_graph_img_mosaic(obj->graph, &obj->imgMosaicObj, NULL);
-        APP_PRINTF("Img Mosaic graph done!\n");
-    }
-
-    if(status == VX_SUCCESS)
-    {
-        status = app_create_graph_display(obj->graph, &obj->displayObj, obj->imgMosaicObj.output_image[0]);
+        status = app_create_graph_display(obj->graph, &obj->displayObj, display_in_image);
         APP_PRINTF("Display graph done!\n");
     }
-    #else
-    if(status == VX_SUCCESS)
-    {
-        status = app_create_graph_display(obj->graph, &obj->displayObj, (vx_image)vxGetObjectArrayItem(obj->vissObj.output_arr, 0));
-        APP_PRINTF("Display graph done!\n");
-    }
-    #endif
 
     if(status == VX_SUCCESS)
     {
         APP_PRINTF("start add_graph_parameter_by_node_index\n");
         graph_parameter_index = 0;
-        add_graph_parameter_by_node_index(obj->graph, obj->captureObj.node, 1);
+        if(obj->offline_enable == 0)
+        {
+            add_graph_parameter_by_node_index(obj->graph, obj->captureObj.node, 1);
+        }
+        else
+        {
+            /* Offline: make RAW input to the first compute node enqueuable */
+            if(obj->c7x_viss_display)
+            {
+                /* tivxOCPreProcNode(config, input_raw, output_tensor) => input index = 1 */
+                add_graph_parameter_by_node_index(obj->graph, obj->preProcObj.node, 1);
+            }
+            else
+            {
+                /* tivxVpacVissNode(..., raw_image, ...) => raw input index = 3 */
+                add_graph_parameter_by_node_index(obj->graph, obj->vissObj.node, 3);
+            }
+        }
+
         obj->captureObj.graph_parameter_index = graph_parameter_index;
         graph_parameters_queue_params_list[graph_parameter_index].graph_parameter_index = graph_parameter_index;
         graph_parameters_queue_params_list[graph_parameter_index].refs_list_size = APP_BUFFER_Q_DEPTH;
@@ -932,21 +1454,22 @@ static vx_status app_create_graph(AppObj *obj)
         {
             status = tivxSetGraphPipelineDepth(obj->graph, APP_PIPELINE_DEPTH);
         }
-        #if Capture_Pre_C7X_Post_VISS_Display
-        if(status == VX_SUCCESS)
+        if (obj->c7x_viss_display)
         {
-            status = tivxSetNodeParameterNumBufByIndex(obj->preProcObj.node, 2, APP_BUFFER_Q_DEPTH);
+            if(status == VX_SUCCESS)
+            {
+                status = tivxSetNodeParameterNumBufByIndex(obj->preProcObj.node, 2, APP_BUFFER_Q_DEPTH);
+            }
+            // if(status == VX_SUCCESS)
+            // {
+            //     status = tivxSetNodeParameterNumBufByIndex(obj->tidlObj.node, 7, APP_BUFFER_Q_DEPTH);
+            // }
+            if(status == VX_SUCCESS)
+            {
+                status = tivxSetNodeParameterNumBufByIndex(obj->postProcObj.node, 3, APP_BUFFER_Q_DEPTH);
+            }
         }
-        // if(status == VX_SUCCESS)
-        // {
-        //     status = tivxSetNodeParameterNumBufByIndex(obj->tidlObj.node, 7, APP_BUFFER_Q_DEPTH);
-        // }
-  
-        if(status == VX_SUCCESS)
-        {
-            status = tivxSetNodeParameterNumBufByIndex(obj->postProcObj.node, 3, APP_BUFFER_Q_DEPTH);
-        }
-        #endif
+
         /*  索引 0~2 可能是控制/配置输入；
             索引 3~5 可能是主输出（如全分辨率 YUV）；
             索引 6 可能是HDR合成后的输出；
@@ -956,19 +1479,29 @@ static vx_status app_create_graph(AppObj *obj)
         {
             status = tivxSetNodeParameterNumBufByIndex(obj->vissObj.node, 6, APP_BUFFER_Q_DEPTH);
         }
-        // if(status == VX_SUCCESS)
-        // {
-        //     status = tivxSetNodeParameterNumBufByIndex(obj->vissObj.node, 9, APP_BUFFER_Q_DEPTH);
-        // }
-        #if IMGMOSAICEN
-        if(status == VX_SUCCESS)
+        if((obj->enable_aewb == 1) && (status == VX_SUCCESS))
+        {
+            if (status == VX_SUCCESS)
+            {
+                status = tivxSetNodeParameterNumBufByIndex(obj->aewbObj.node, 4, APP_BUFFER_Q_DEPTH);
+            }
+        }
+        if((obj->sensorObj.enable_ldc == 1) && (status == VX_SUCCESS))
+        {
+            status = tivxSetNodeParameterNumBufByIndex(obj->ldcObj.node, 7, APP_BUFFER_Q_DEPTH);
+        }
+        if((obj->enable_mosaic == 1) && (status == VX_SUCCESS))
         {
             if(!(obj->test_mode == 1))
             {
                 status = tivxSetNodeParameterNumBufByIndex(obj->imgMosaicObj.node, 1, 4);
+                APP_PRINTF("Pipeline params setup done!\n");
             }
         }
-        #endif
+        // if(status == VX_SUCCESS)
+        // {
+        //     status = tivxSetNodeParameterNumBufByIndex(obj->vissObj.node, 9, APP_BUFFER_Q_DEPTH);
+        // }
 
         APP_PRINTF("Pipeline params setup done!\n");
     }
@@ -994,7 +1527,11 @@ static vx_status app_verify_graph(AppObj *obj)
     }
     #endif
 
-    if ((obj->captureObj.enable_error_detection || obj->test_mode) && (status == VX_SUCCESS))
+    /* In offline mode there is no capture node, so skip capture error-frame injection */
+    if ((obj->offline_enable == 0) &&
+        (obj->captureObj.node != NULL) &&
+        (obj->captureObj.enable_error_detection || obj->test_mode) &&
+        (status == VX_SUCCESS))
     {
         status = app_send_error_frame(&obj->captureObj);
         APP_PRINTF("App Send Error Frame Done! %d \n", obj->captureObj.enable_error_detection);
@@ -1068,8 +1605,96 @@ static vx_status app_run_graph(AppObj *obj)
         printf("sensor name is NULL \n");
         return VX_FAILURE;
     }
-    status = appStartImageSensor(sensorObj->sensor_name, ch_mask);
-    APP_PRINTF("appStartImageSensor returned with status: %d\n", status);
+    if(obj->offline_enable == 0)
+    {
+        status = appStartImageSensor(sensorObj->sensor_name, ch_mask);
+        APP_PRINTF("appStartImageSensor returned with status: %d\n", status);
+    }
+    else
+    {
+        char **file_list = NULL;
+        vx_uint32 file_count = 0;
+        vx_uint32 enqueued = 0;
+        vx_uint32 processed = 0;
+
+        if(obj->offline_raw_dir[0] == '\0')
+        {
+            printf("Offline mode enabled but offline_raw_dir is empty\n");
+            return VX_FAILURE;
+        }
+
+        status = app_offline_list_raw_files(obj->offline_raw_dir, &file_list, &file_count);
+        if(status != VX_SUCCESS || file_count == 0)
+        {
+            printf("Offline mode: no .raw files found under %s\n", obj->offline_raw_dir);
+            app_offline_free_raw_files(file_list, file_count);
+            return VX_FAILURE;
+        }
+
+        APP_PRINTF("Offline mode: found %u raw files under %s\n", file_count, obj->offline_raw_dir);
+
+        /* Prime the pipeline with up to APP_BUFFER_Q_DEPTH buffers */
+        for(enqueued = 0; enqueued < APP_BUFFER_Q_DEPTH && enqueued < file_count; enqueued++)
+        {
+            if(app_offline_load_raw_to_object_array(obj->captureObj.raw_image_arr[enqueued], file_list[enqueued]) < 0)
+            {
+                status = VX_FAILURE;
+                break;
+            }
+            status = vxGraphParameterEnqueueReadyRef(obj->graph,
+                                                    obj->captureObj.graph_parameter_index,
+                                                    (vx_reference*)&obj->captureObj.raw_image_arr[enqueued],
+                                                    1);
+            if(status != VX_SUCCESS)
+            {
+                break;
+            }
+        }
+
+        while(status == VX_SUCCESS && processed < file_count)
+        {
+            vx_object_array done_ref = NULL;
+            uint32_t num_refs = 0;
+
+            status = vxGraphParameterDequeueDoneRef(obj->graph,
+                                                    obj->captureObj.graph_parameter_index,
+                                                    (vx_reference*)&done_ref,
+                                                    1,
+                                                    &num_refs);
+            if(status != VX_SUCCESS)
+            {
+                break;
+            }
+            processed++;
+
+            /* Reuse buffer for next file if any remain */
+            if(enqueued < file_count)
+            {
+                if(app_offline_load_raw_to_object_array(done_ref, file_list[enqueued]) < 0)
+                {
+                    status = VX_FAILURE;
+                }
+                else
+                {
+                    status = vxGraphParameterEnqueueReadyRef(obj->graph,
+                                                            obj->captureObj.graph_parameter_index,
+                                                            (vx_reference*)&done_ref,
+                                                            1);
+                }
+                enqueued++;
+            }
+        }
+
+        if(status == VX_SUCCESS)
+        {
+            status = vxWaitGraph(obj->graph);
+        }
+
+        app_offline_free_raw_files(file_list, file_count);
+
+        obj->stop_task = 1;
+        return status;
+    }
 
     for(frame_id = 0; frame_id < obj->num_frames_to_run; frame_id++)
     {
@@ -1092,11 +1717,11 @@ static vx_status app_run_graph(AppObj *obj)
             {
                 app_send_cmd_scaler_write_node(&obj->scalerObj, frame_id, obj->num_frames_to_write, obj->num_frames_to_skip);
             }
-            if(obj->preProcObj.en_out_pre_proc_write == 1)
+            if(obj->preProcObj.en_out_pre_proc_write == 1 && (1 == obj->c7x_viss_display))
             {
                 app_send_cmd_pre_proc_write_node(&obj->preProcObj, frame_id, obj->num_frames_to_write, obj->num_frames_to_skip);
             }
-            if(obj->postProcObj.en_out_post_proc_write == 1)
+            if(obj->postProcObj.en_out_post_proc_write == 1 && (1 == obj->c7x_viss_display))
             {
                 app_send_cmd_post_proc_write_node(&obj->postProcObj, frame_id, obj->num_frames_to_write, obj->num_frames_to_skip);
             }
@@ -1114,9 +1739,191 @@ static vx_status app_run_graph(AppObj *obj)
 
     obj->stop_task = 1;
 
-    status = appStopImageSensor(obj->sensorObj.sensor_name, ch_mask);
+    if(obj->offline_enable == 0)
+    {
+        status = appStopImageSensor(obj->sensorObj.sensor_name, ch_mask);
+    }
 
     return status;
+}
+
+static vx_status app_offline_list_raw_files(const char *dir_path, char ***out_list, vx_uint32 *out_count)
+{
+    DIR *dir = NULL;
+    struct dirent *ent = NULL;
+    vx_uint32 count = 0;
+    vx_uint32 cap = 64;
+    char **list = NULL;
+    struct stat st;
+
+    *out_list = NULL;
+    *out_count = 0;
+
+    if(dir_path == NULL || dir_path[0] == '\0')
+    {
+        return VX_FAILURE;
+    }
+
+    if(stat(dir_path, &st) != 0 || !S_ISDIR(st.st_mode))
+    {
+        return VX_FAILURE;
+    }
+
+    dir = opendir(dir_path);
+    if(dir == NULL)
+    {
+        return VX_FAILURE;
+    }
+
+    list = (char **)calloc(cap, sizeof(char *));
+    if(list == NULL)
+    {
+        closedir(dir);
+        return VX_FAILURE;
+    }
+
+    while((ent = readdir(dir)) != NULL)
+    {
+        const char *name = ent->d_name;
+        size_t nlen = strlen(name);
+        if(nlen < 5)
+            continue;
+        if(strcmp(name + (nlen - 4), ".raw") != 0)
+            continue;
+        if(name[0] == '.')
+            continue;
+
+        if(count == cap)
+        {
+            vx_uint32 new_cap = cap * 2u;
+            char **new_list = (char **)realloc(list, new_cap * sizeof(char *));
+            if(new_list == NULL)
+            {
+                app_offline_free_raw_files(list, count);
+                closedir(dir);
+                return VX_FAILURE;
+            }
+            list = new_list;
+            memset(&list[cap], 0, (new_cap - cap) * sizeof(char *));
+            cap = new_cap;
+        }
+
+        {
+            char full_path[APP_MAX_FILE_PATH];
+            int n = snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, name);
+            if(n <= 0 || (size_t)n >= sizeof(full_path))
+                continue;
+            list[count] = strdup(full_path);
+            if(list[count] != NULL)
+            {
+                count++;
+            }
+        }
+    }
+
+    closedir(dir);
+
+    if(count > 1)
+    {
+        qsort(list, count, sizeof(char *), app_offline_cmp_strptr);
+    }
+
+    *out_list = list;
+    *out_count = count;
+    return VX_SUCCESS;
+}
+
+static void app_offline_free_raw_files(char **list, vx_uint32 count)
+{
+    vx_uint32 i;
+    if(list == NULL)
+        return;
+    for(i = 0; i < count; i++)
+    {
+        if(list[i] != NULL)
+            free(list[i]);
+    }
+    free(list);
+}
+
+static vx_int32 app_offline_load_raw_to_object_array(vx_object_array raw_arr, const char *raw_file_path)
+{
+    vx_int32 bytes_read_total = 0;
+    FILE *fp = NULL;
+    tivx_raw_image raw = NULL;
+    vx_uint32 width = 0, height = 0, i = 0;
+    vx_imagepatch_addressing_t image_addr;
+    vx_rectangle_t rect;
+    vx_map_id map_id;
+    void *data_ptr = NULL;
+    vx_uint32 num_bytes_per_pixel = 2; /* RAW12 unpack (16-bit container) */
+    vx_uint32 imgaddr_width = 0, imgaddr_height = 0, imgaddr_stride = 0;
+
+    if(raw_arr == NULL || raw_file_path == NULL)
+        return -1;
+
+    fp = fopen(raw_file_path, "rb");
+    if(!fp)
+    {
+        printf("Offline mode: unable to open %s\n", raw_file_path);
+        return -1;
+    }
+
+    raw = (tivx_raw_image)vxGetObjectArrayItem(raw_arr, 0);
+    if(raw == NULL)
+    {
+        fclose(fp);
+        return -1;
+    }
+
+    tivxQueryRawImage(raw, TIVX_RAW_IMAGE_WIDTH, &width, sizeof(width));
+    tivxQueryRawImage(raw, TIVX_RAW_IMAGE_HEIGHT, &height, sizeof(height));
+
+    rect.start_x = 0;
+    rect.start_y = 0;
+    rect.end_x = width;
+    rect.end_y = height;
+
+    tivxMapRawImagePatch(raw,
+                         &rect,
+                         0,
+                         &map_id,
+                         &image_addr,
+                         &data_ptr,
+                         VX_WRITE_ONLY,
+                         VX_MEMORY_TYPE_HOST,
+                         TIVX_RAW_IMAGE_PIXEL_BUFFER);
+
+    if(!data_ptr)
+    {
+        tivxReleaseRawImage(&raw);
+        fclose(fp);
+        return -1;
+    }
+
+    imgaddr_width  = image_addr.dim_x;
+    imgaddr_height = image_addr.dim_y;
+    imgaddr_stride = image_addr.stride_y;
+
+    for(i = 0; i < imgaddr_height; i++)
+    {
+        vx_int32 r = (vx_int32)fread(data_ptr, 1, imgaddr_width * num_bytes_per_pixel, fp);
+        if(r <= 0)
+            break;
+        bytes_read_total += r;
+        data_ptr += imgaddr_stride;
+    }
+
+    tivxUnmapRawImagePatch(raw, map_id);
+    tivxReleaseRawImage(&raw);
+    fclose(fp);
+
+    if(bytes_read_total <= 0)
+    {
+        printf("Offline mode: read 0 bytes from %s\n", raw_file_path);
+        return -1;
+    }
+    return bytes_read_total;
 }
 
 static void set_scaler_defaults(ScalerObj *scalerObj)
@@ -1143,16 +1950,15 @@ static void set_sensor_defaults(SensorObj *sensorObj)
     sensorObj->num_sensors_found = 0;
     sensorObj->sensor_features_enabled = 0;
     sensorObj->sensor_features_supported = 0;
-    sensorObj->sensor_dcc_enabled = 0;
+    sensorObj->sensor_dcc_enabled = 1;/*/home/wp/tda4vm/imaging/tools/default_DCC_profile_gen*/
     sensorObj->sensor_wdr_enabled = 0;
-    sensorObj->sensor_exp_control_enabled = 0;
-    sensorObj->sensor_gain_control_enabled = 0;
+    sensorObj->sensor_exp_control_enabled = 1;/*aewbObj->params.ae_mode configure_aewb */
+    sensorObj->sensor_gain_control_enabled = 1;/*aewbObj->params.ae_mode configure_aewb */
     sensorObj->ch_mask = 1;
-    sensorObj->enable_ldc = 1;
-    sensorObj->num_cameras_enabled = 1;
+    sensorObj->enable_ldc = 0;
+    sensorObj->num_cameras_enabled = 1;  
     sensorObj->usecase_option = APP_SENSOR_FEATURE_CFG_UC0;
     sensorObj->is_interactive = 1;
-
 }
 
 static void app_default_param_set(AppObj *obj)

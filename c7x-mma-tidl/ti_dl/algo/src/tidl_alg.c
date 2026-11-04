@@ -83,6 +83,7 @@
 #include "tidl_function_mapping.h"
 #include "workload_ref_exec.h"
 #include "gc_helper.h"
+#include <stdio.h>
 
 #define TEMP_FORCE_OUTPUT_TO_DDR (0)
 #define VAILD_DDR_BUFFER         (1U)
@@ -1907,6 +1908,11 @@ int32_t TIDL_layerProcess(
 
 int32_t gCurrLayerNumber;
 int32_t gLayerNumber = -1;
+static IVISION_BufDesc prevOutBufDesc1;
+static void *prevOutBufData[IVISION_MAX_NUM_PLANES] = {NULL};
+static uint32_t prevOutBufSize[IVISION_MAX_NUM_PLANES] = {0};
+static bool prevOutBufDesc1Valid = false;
+
 /* CHECK_MISRA("-16.7")  -> Disable rule 16.7
 Pointer parameter inBufs and outBufs are not used to modify the addressed
 object but is not declared as a pointer to const
@@ -2005,6 +2011,22 @@ IVISION_OutArgs *outArgs)
       {
         inDataParams = TIDL_getDataParams(intAlgHandle->createParams->net,inBufs->bufDesc[i]->bufferId);
         inDataParams->tensorScale = tidlInArgs->scale[i];
+      }
+      tidl_printf(0, "tidlInArgs->scale[%d]=%d \n", i, tidlInArgs->scale[i]);
+    }
+    // 使用保存的缓冲区描述符
+    if (inBufs->numBufs == 2 && outBufs->numBufs == 2 && prevOutBufDesc1Valid)
+    {
+      TIDL_enableL1DandL2CacheWb();
+      // 只复制缓冲区内容，不修改 bufferId
+      for (int32_t i = 0; i < prevOutBufDesc1.numPlanes; i++)
+      {
+        if (inBufs->bufDesc[1]->bufPlanes[i].buf != NULL && prevOutBufDesc1.bufPlanes[i].buf != NULL)
+        {
+          uint32_t planeSize = inBufs->bufDesc[1]->bufPlanes[i].width * 
+                              inBufs->bufDesc[1]->bufPlanes[i].height;
+          memcpy(inBufs->bufDesc[1]->bufPlanes[i].buf, prevOutBufDesc1.bufPlanes[i].buf, planeSize);
+        }
       }
     }
 
@@ -2148,7 +2170,10 @@ IVISION_OutArgs *outArgs)
         {
           status = TIDL_getLayerOutPtrs(outBufs, intAlgHandle, algLayer, tidlLayer, outPtrs, layerId);
         }
-
+        if(status != IALG_EOK)
+        {
+          tidl_printf(0,"TIDL_process : TIDL_getLayerOutPtrs failed\n");
+        }
         if(intAlgHandle->createParams->net->inferenceMode  == TIDL_inferenceModeLowLatency)
         {
           if ((isRefExecFlowEnabled == 1) || (intAlgHandle->createParams->net->inferenceMode  == TIDL_inferenceModeLowLatency) )
@@ -2174,7 +2199,10 @@ IVISION_OutArgs *outArgs)
           algLayer->procType = TIDL_getAlgProcType(workloadUnit);
           algLayer->memcpyTr = intAlgHandle->memcpyTr;
           status = WorkloadRefExec_Process(intAlgHandle, &commonParams, workloadUnit, algLayer, tidlLayer, inPtrs, outPtrs, layerId, relativeCoreId);
-
+          if(status != IALG_EOK)
+          {
+            tidl_printf(0,"TIDL_process : WorkloadRefExec_Process failed\n");
+          }
           if (intAlgHandle->createParams->traceWriteLevel > 0)
           {
             if (algLayer->gcHelperHandle != NULL)
@@ -2264,6 +2292,10 @@ IVISION_OutArgs *outArgs)
             intAlgHandle->sysScratchPtr.l3BasePtr[relativeCoreId], nextExecutionLyr, intAlgHandle->createParams->net->numLayers);
             TIDL_unlockForPreemption(oldIntState, intAlgHandle->createParams, &lockState);
           }
+          if(status != IALG_EOK)
+          {
+            tidl_printf(0,"TIDL_process : TIDL_updateContextMemPtrsForPreemption failed\n");
+          }          
         }
       }
     }
@@ -2298,13 +2330,47 @@ IVISION_OutArgs *outArgs)
       sTIDL_DataParams_t *dataParams;
       dataParams = TIDL_getDataParams(intAlgHandle->createParams->net,outBufs->bufDesc[i]->bufferId);
       tidlOutArgs->scale[i] = dataParams->tensorScale;
+      tidl_printf(0, "tidlOutArgs->scale[%d]=%d \n", i, dataParams->tensorScale);
     }
     tidlOutArgs->numOutBufs = (int32_t)outBufs->numBufs;
     tidlOutArgs->numLayers = intAlgHandle->createParams->net->numLayers;
     tidlOutArgs->privArgs  = (void*) intAlgHandle->createParams->net ;
+  } else {
+    tidl_printf(0, "status is error \n");
   }
 
   TIDL_getTscTime(&tEndNetwork);
+  // 处理完成后保存输出
+  if (outBufs->numBufs == 2)
+  {
+    TIDL_enableL1DandL2CacheWb();
+    memcpy(&prevOutBufDesc1, outBufs->bufDesc[1], sizeof(IVISION_BufDesc));
+    for (int32_t i = 0; i < prevOutBufDesc1.numPlanes; i++)
+    {
+      if (outBufs->bufDesc[1]->bufPlanes[i].buf != NULL)
+      {
+        uint32_t planeSize = outBufs->bufDesc[1]->bufPlanes[i].width * 
+                            outBufs->bufDesc[1]->bufPlanes[i].height;
+        if (prevOutBufData[i] == NULL || prevOutBufSize[i] < planeSize)
+        {
+          if (prevOutBufData[i] != NULL)
+          {
+            free(prevOutBufData[i]);
+          }
+          prevOutBufData[i] = malloc(planeSize);
+          prevOutBufSize[i] = planeSize;
+        }
+        if (prevOutBufData[i] != NULL)
+        {
+          memcpy(prevOutBufData[i], outBufs->bufDesc[1]->bufPlanes[i].buf, planeSize);
+          prevOutBufDesc1.bufPlanes[i].buf = prevOutBufData[i];
+        }
+      }
+    }
+    
+    // 标记为有效
+    prevOutBufDesc1Valid = true;
+  }
 
   if((tidlInArgs->enableLayerPerfTraces == 1) && (NULL != intAlgHandle))
   {

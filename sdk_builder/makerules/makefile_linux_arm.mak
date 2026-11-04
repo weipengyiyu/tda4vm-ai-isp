@@ -65,8 +65,8 @@ ifeq ($(YOCTO_STAGE),)
 endif
 
 	# copy imaging sensor dcc binaries
-	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/linear
-	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/wdr
+	# install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/linear
+	# install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/wdr
 
 	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0820/linear
 	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0820/wdr
@@ -74,13 +74,13 @@ endif
 	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0233/linear
 	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0233/wdr
 	
-	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/imx219/linear
+	# install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/imx219/linear
 ifeq ($(SOC),am62a)
 	install -m 775 -d $(LINUX_FS_STAGE_PATH)/opt/imaging/ov2312/linear
 endif
 
-	cp $(IMAGING_PATH)/sensor_drv/src/imx390/dcc_bins/linear/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/linear/
-	cp $(IMAGING_PATH)/sensor_drv/src/imx390/dcc_bins/wdr/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/wdr/
+	# cp $(IMAGING_PATH)/sensor_drv/src/imx390/dcc_bins/linear/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/linear/
+	# cp $(IMAGING_PATH)/sensor_drv/src/imx390/dcc_bins/wdr/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/imx390/wdr/
 
 	cp $(IMAGING_PATH)/sensor_drv/src/ar0820/dcc_bins/linear/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0820/linear
 	cp $(IMAGING_PATH)/sensor_drv/src/ar0820/dcc_bins/wdr/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0820/wdr
@@ -88,7 +88,7 @@ endif
 	cp $(IMAGING_PATH)/sensor_drv/src/ar0233/dcc_bins/linear/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0233/linear
 	cp $(IMAGING_PATH)/sensor_drv/src/ar0233/dcc_bins/wdr/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/ar0233/wdr
 
-	cp $(IMAGING_PATH)/sensor_drv/src/imx219/dcc_bins/linear/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/imx219/linear
+	# cp $(IMAGING_PATH)/sensor_drv/src/imx219/dcc_bins/linear/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/imx219/linear
 ifeq ($(SOC),am62a)
 	cp $(IMAGING_PATH)/sensor_drv/src/ov2312/dcc_bins/linear/*.bin $(LINUX_FS_STAGE_PATH)/opt/imaging/ov2312/linear
 endif
@@ -301,7 +301,8 @@ define CLEAN_COPY_FROM_STAGE =
 
 	# create new directories
 	-mkdir -p $(1)/$(IPK_TARGET_INC_PATH)
-
+	# remove remote log file to avoid permission issues
+	-rm -f $(1)/opt/vision_apps/vx_app_arm_remote_log.out
 	# copy full vision apps linux fs stage directory into linux fs
 	cp -r $(LINUX_FS_STAGE_PATH)/* $(1)/.
 	sync
@@ -316,6 +317,9 @@ define CLEAN_COPY_FROM_STAGE_FAST =
 	-rm -f $(1)/lib/firmware/$(LINUX_FIRMWARE_PREFIX)-*-fw
 	-rm -f $(1)/lib/firmware/$(LINUX_FIRMWARE_PREFIX)-*-fw-sec
 	-rm -rf $(1)/lib/firmware/$(FIRMWARE_SUBFOLDER)
+
+	# remove remote log file to avoid permission issues
+	-rm -f $(1)/opt/vision_apps/vx_app_arm_remote_log.out
 
 	# copy partial vision apps linux fs stage directory into linux fs
 	cp -r $(LINUX_FS_STAGE_PATH)/lib/firmware/$(LINUX_FIRMWARE_PREFIX)-*-fw $(1)/lib/firmware/.
@@ -427,8 +431,8 @@ endif
 
 linux_fs_install_sd_ip: ip_addr_check linux_fs_install
 	mkdir -p /tmp/j7-evm
-	sshfs -o nonempty root@$(J7_IP_ADDRESS):/ /tmp/j7-evm
-	#(call CLEAN_COPY_FROM_STAGE,/tmp/j7-evm)
+	sudo chown $(whoami):$(whoami) /tmp/j7-evm
+	sshfs -o uid=0,gid=0 root@$(J7_IP_ADDRESS):/ /tmp/j7-evm
 	$(call CLEAN_COPY_FROM_STAGE_FAST,/tmp/j7-evm)
 	chmod 777 -R /tmp/j7-evm/lib/firmware/$(FIRMWARE_SUBFOLDER)
 	fusermount -u /tmp/j7-evm/

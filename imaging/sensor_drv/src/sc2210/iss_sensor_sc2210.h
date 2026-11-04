@@ -70,8 +70,8 @@
 #define SC2210_OUT_HEIGHT  (1100)
 #define SC2210_META_HEIGHT_AFTER (4)
 
-#include "ox03c10_linear_4lane_60fps_2m_12bit_init_all.h"
-#include "ox03c10_built_in_4lane_60fps_2m_12bit_init_all.h"
+#include "sc2210_wdr_4lane_30fps_10bit.h"
+#include "sc2210_linear_4lane_30fps_12bit.h"
 
 /*******************************************************************************
  *  Defines
@@ -82,55 +82,16 @@
 
 #define ISS_SENSOR_SC2210_DEFAULT_EXP_RATIO     (128U)
 
-#define ISS_SENSOR_SC2210_FEATURES      (ISS_SENSOR_FEATURE_MANUAL_EXPOSURE|   \
-                                         ISS_SENSOR_FEATURE_LINEAR_MODE| \
+#define ISS_SENSOR_SC2210_FEATURES      (ISS_SENSOR_FEATURE_LINEAR_MODE | \
+                                         ISS_SENSOR_FEATURE_MANUAL_GAIN | \
+                                         ISS_SENSOR_FEATURE_MANUAL_EXPOSURE | \
                                          ISS_SENSOR_FEATURE_DCC_SUPPORTED)
 
-#define ISS_SC2210_GAIN_TBL_STEP_SIZE           (100U)
-#define ISS_SC2210_GAIN_TBL_STARTOFFSET         (10U)
-#define ISS_SC2210_MAX_INTG_LINES               (2050U)
-#define ISS_SC2210_VMAX                         (0x44c)
-#define ISS_SC2210_RHS                          (0x85U)
-
-#define SC2210_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR         (0x0018U)
-#define SC2210_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        SC2210_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
-#define SC2210_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR         (0x001AU)
-#define SC2210_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        SC2210_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
-
-#define SC2210_VMAX                         (0x465U)
-
-#define SC2210_AE_CONTROL_LONG_REG_ADDR_LOW   (0x000C)
-#define SC2210_AE_CONTROL_LONG_REG_ADDR_HIGH   ( \
-        SC2210_AE_CONTROL_LONG_REG_ADDR_LOW + 1)
-#define SC2210_AE_CONTROL_LONG_REG_ADDR_TOP   ( \
-        SC2210_AE_CONTROL_LONG_REG_ADDR_HIGH + 1)
-
-#define SC2210_AE_CONTROL_SHORT_REG_ADDR_LOW   (0x0010)
-#define SC2210_AE_CONTROL_SHORT_REG_ADDR_HIGH  ( \
-        SC2210_AE_CONTROL_SHORT_REG_ADDR_LOW + 1)
-#define SC2210_AE_CONTROL_SHORT_REG_ADDR_MSB   ( \
-        SC2210_AE_CONTROL_SHORT_REG_ADDR_HIGH + 1)
-
-
-#define SC2210_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR         (0x0018U)
-#define SC2210_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        SC2210_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
-
-#define SC2210_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR         (0x001AU)
-#define SC2210_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        SC2210_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
-
-#define SC2210_RED_GAIN_REG_L                (0x0030U)
-#define SC2210_RED_GAIN_REG_H                (0x0031U)
-#define SC2210_GREEN1_GAIN_REG_L             (0x0032U)
-#define SC2210_GREEN1_GAIN_REG_H             (0x0033U)
-#define SC2210_GREEN2_GAIN_REG_L             (0x0034U)
-#define SC2210_GREEN2_GAIN_REG_H             (0x0035U)
-#define SC2210_BLUE_GAIN_REG_L               (0x0036U)
-#define SC2210_BLUE_GAIN_REG_H               (0x0037U)
-#define SC2210_ISP_GAIN_OFFSET               (1U)
+#define ISS_SENSOR_SC2210_FEATURES_WDR      (ISS_SENSOR_FEATURE_LINEAR_MODE | \
+                                         ISS_SENSOR_FEATURE_MANUAL_GAIN | \
+                                         ISS_SENSOR_FEATURE_MANUAL_EXPOSURE | \
+                                         ISS_SENSOR_FEATURE_DCC_SUPPORTED | \
+                                         ISS_SENSOR_FEATURE_COMB_COMP_WDR_MODE)
 
 /*******************************************************************************
  *  Local Functions Declarations
@@ -165,3 +126,7 @@ static int32_t SC2210_ReadReg(uint8_t      i2cInstId,
                             uint16_t        regAddr,
                             uint8_t         *regVal,
                             uint32_t        numRegs);
+
+
+                            #include <stdint.h>
+

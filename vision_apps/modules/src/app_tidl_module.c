@@ -587,7 +587,8 @@ static vx_status setCreateParams(vx_context context, vx_user_data_object createP
             prms->isInbufsPaded                 = 1;
             prms->quantRangeExpansionFactor     = 1.0;
             prms->quantRangeUpdateFactor        = 0.0;
-            prms->traceLogLevel                 = 0;
+            // prms->traceLogLevel                 = 0;
+            prms->traceLogLevel                 = 1;
             prms->traceWriteLevel               = 0;
         }
         else

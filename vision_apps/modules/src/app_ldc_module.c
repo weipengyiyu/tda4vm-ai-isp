@@ -64,7 +64,7 @@
 #include "ldc_lut_1920x1080.h"
 
 static uint8_t  g_ldc_lut[] = LDC_LUT_1920_1080;
-#if 0
+
 static vx_status configure_dcc_params(vx_context context, LDCObj *ldcObj, SensorObj *sensorObj)
 {
     vx_status status = VX_SUCCESS;
@@ -114,7 +114,7 @@ static vx_status configure_dcc_params(vx_context context, LDCObj *ldcObj, Sensor
 
     return status;
 }
-#endif
+
 static vx_status configure_mesh_params(vx_context context, LDCObj *ldcObj, SensorObj *sensorObj)
 {
     vx_status status = VX_SUCCESS;
@@ -354,7 +354,7 @@ vx_status app_init_ldc(vx_context context, LDCObj *ldcObj, SensorObj *sensorObj,
     ldcObj->table_height = LDC_TABLE_HEIGHT;
     ldcObj->ds_factor    = LDC_DS_FACTOR;
 
-    // status = configure_dcc_params(context, ldcObj, sensorObj);
+    status = configure_dcc_params(context, ldcObj, sensorObj);
 
     if(status == VX_SUCCESS)
     {

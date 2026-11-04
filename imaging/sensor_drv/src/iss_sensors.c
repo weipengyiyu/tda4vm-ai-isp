@@ -209,8 +209,9 @@ int32_t IssSensor_Init()
     This will register the sensors with the framework
 */
     status |= IssSensor_OVX3C_Init();
+    status |= IssSensor_SC2210_Init();
     status |= IssSensor_IMX728_Init();
-    status |= IssSensor_IMX390_Init();
+    // status |= IssSensor_IMX390_Init();
     // status |= IssSensor_OVX3C_Init();
     // status |= IssSensor_AR0233_Init();
     // status |= IssSensor_AR0820_Init();

@@ -126,7 +126,7 @@ static vx_status VX_CALLBACK tivxAddKernelOCPreProcValidate(vx_node node,
         // tivxCheckStatus(&status, vxQueryImage(in_img, VX_IMAGE_SIZE, &in_img_size, sizeof(in_img_size)));
 
         tivxCheckStatus(&status, vxQueryTensor(out_tensor, VX_TENSOR_NUMBER_OF_DIMS, &out_tensor_dims, sizeof(out_tensor_dims)));
-        VX_PRINT(VX_ZONE_ERROR, "out_tensor_dims = %d \n", out_tensor_dims);
+        // VX_PRINT(VX_ZONE_ERROR, "out_tensor_dims = %d \n", out_tensor_dims);
     }
 
     /* PARAMETER CHECKING */
