@@ -1,9 +1,9 @@
-
+# mkdir tools/include 
 
 cd scripts
 
-python3 ctt_def_xml_gen.py ../configs/sc2210_properties_hdr.txt
-cd ../sc2210_output_hdr/dcc_xmls/wdr
+python3 ctt_def_xml_gen.py ../configs/imx623_properties.txt
+cd ../imx623_output_hdr/dcc_xmls/wdr
 
 
 #python3 ctt_def_xml_gen.py ../configs/sc2210_properties.txt
@@ -21,4 +21,4 @@ ls -al include/*
 cp  include/*.h ../sensor_drv/include/
 
 
-ls -al ../sensor_drv/include/*sc2210*
+ls -al ../sensor_drv/include/*imx623*

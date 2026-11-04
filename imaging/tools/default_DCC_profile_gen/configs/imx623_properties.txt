@@ -1,0 +1,39 @@
+SENSOR_ID 623
+PRJ_DIR ../imx623_output_hdr
+SENSOR_NAME imx623
+SENSOR_DCC_NAME imx623-dcc-hdr
+
+SENSOR_WIDTH 1920
+SENSOR_HEIGHT 1080
+
+# 0=RGGB; 1=GRBG; 2=GBRG; 3=BGGR, 4=MONO
+COLOR_PATTERN 0
+
+# sensor mode: 0 for linear (no decompanding), 1 for WDR (decompanding)
+WDR_MODE 1
+
+# raw sensor image BIT_DEPTH: it may be 8, 10, or 12 for linear sensors; typically 12 for WDR mode because of companding
+BIT_DEPTH 12
+
+# WDR BIT_DEPTH: WDR raw sensor image bitdepth after decompanding, typically 20 or 24
+WDR_BIT_DEPTH 20
+
+# WDR decompanding knee points (comma separated without spaces in between)
+WDR_KNEE_X 0,58,116,150,203,256
+WDR_KNEE_Y 0,195,6608,24211,238662,1048576
+#WDR_KNEE_X 0,232,464,600,812,1024
+#WDR_KNEE_Y 0,780,26432,96844,954648,4194304
+
+# Sensor black level to subtract before decompanding (for linear sensors only and some Sony WDR sensors)
+BLACK_PRE  0
+
+# Sensor black level to subtract after decompanding (for most WDR sensors and all linear sensors)
+BLACK_POST  0
+
+# GAMMA value for compressing 20/24-bit WDR raw to 16-bit ISP internal
+# typically around 50 (0.5) for 24-bit WDR sensors and 70 (0.7) for 20-bit sensors
+GAMMA_PRE 70
+
+# LSB location for H3A input bit range (from bit-H3A_INPUT_LSB to bit-H3A_INPUT_LSB+9) 
+H3A_INPUT_LSB 2
+

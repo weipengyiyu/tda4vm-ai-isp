@@ -145,6 +145,8 @@ typedef enum
 #define SENSOR_SONY_IMX728_SONY               "IMX728_SONY"
 #define SENSOR_OVX3C                            "SENSOR_OVX3C"
 #define SENSOR_SC2210                            "SENSOR_SC2210"
+#define SENSOR_IMX623                            "SENSOR_IMX623"
+
 /*******************************************************************************
  *  Data structure's
  *******************************************************************************

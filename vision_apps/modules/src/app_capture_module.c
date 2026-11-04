@@ -106,8 +106,8 @@ static vx_status configure_capture_params(vx_context context, CaptureObj *captur
             captureObj->params.timeoutInitial = 500;
         }
         captureObj->params.numInst  = num_capt_instances;
-        // captureObj->params.numCh    = sensorObj->num_cameras_enabled;
-        captureObj->params.numCh    = sensorObj->num_cameras_enabled * 3; 
+        captureObj->params.numCh    = sensorObj->num_cameras_enabled;
+        // captureObj->params.numCh    = sensorObj->num_cameras_enabled * 3; 
 
         for(id = 0; id < num_capt_instances; id++)
         {
@@ -191,8 +191,8 @@ static vx_status create_capture_output(vx_context context, CaptureObj *captureOb
         {
             for(q = 0; q < bufq_depth; q++)
             {
-                // captureObj->raw_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image, sensorObj->num_cameras_enabled);
-                captureObj->raw_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image, sensorObj->num_cameras_enabled * 3);
+                captureObj->raw_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image, sensorObj->num_cameras_enabled);
+                // captureObj->raw_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image, sensorObj->num_cameras_enabled * 3);
                 status = vxGetStatus((vx_reference)captureObj->raw_image_arr[q]);
                 if(status != VX_SUCCESS)
                 {

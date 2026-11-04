@@ -210,7 +210,8 @@ int32_t IssSensor_Init()
 */
     status |= IssSensor_OVX3C_Init();
     status |= IssSensor_SC2210_Init();
-    status |= IssSensor_IMX728_Init();
+    status |= IssSensor_IMX623_Init();
+    // status |= IssSensor_IMX728_Init();
     // status |= IssSensor_IMX390_Init();
     // status |= IssSensor_OVX3C_Init();
     // status |= IssSensor_AR0233_Init();
