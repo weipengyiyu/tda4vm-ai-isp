@@ -930,7 +930,7 @@ int32_t ImageSensor_RemoteServiceHandler(char *service_name, uint32_t cmd,
     switch(cmd)
     {
         case IM_SENSOR_CMD_ENUMERATE:
-            issLogPrintf("-----0119----ImageSensor_RemoteServiceHandler: IM_SENSOR_CMD_ENUMERATE \n");
+            // issLogPrintf("-----0119----ImageSensor_RemoteServiceHandler: IM_SENSOR_CMD_ENUMERATE \n");
             cmdMemoryNeeded = ISS_SENSORS_MAX_NAME*ISS_SENSORS_MAX_SUPPORTED_SENSOR;
             if(prm_size < cmdMemoryNeeded)
             {

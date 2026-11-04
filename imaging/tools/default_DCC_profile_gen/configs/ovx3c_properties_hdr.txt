@@ -1,0 +1,37 @@
+SENSOR_ID 333
+PRJ_DIR ../ovx3c_output_hdr
+SENSOR_NAME ovx3c
+SENSOR_DCC_NAME ovx3c-dcc
+
+SENSOR_WIDTH 1920
+SENSOR_HEIGHT 1080
+
+# 0=RGGB; 1=GRBG; 2=GBRG; 3=BGGR, 4=MONO
+COLOR_PATTERN 3
+
+# sensor mode: 0 for linear (no decompanding), 1 for WDR (decompanding)
+WDR_MODE 1
+
+# raw sensor image BIT_DEPTH: it may be 8, 10, or 12 for linear sensors; typically 12 for WDR mode because of companding
+BIT_DEPTH 12
+
+# WDR BIT_DEPTH: WDR raw sensor image bitdepth after decompanding, typically 20 or 24
+WDR_BIT_DEPTH 20
+
+# WDR decompanding knee points (comma separated without spaces in between) 33
+WDR_KNEE_X 32,48,64,80,96,104,112,120,128,136,144,152,160,168,176,184,192,200,208,212,216,220,224,228,232,236,240,244,248,252,256,256,256
+WDR_KNEE_Y 32,64,128,192,256,384,512,768,1024,1536,2048,3074,4096,6144,8192,12288,16384,24576,32768,49152,65536,81920,98304,131072,163840,196608,262144,327680,393216,524288,655360,786432,1048576
+
+# Sensor black level to subtract before decompanding (for linear sensors only and some Sony WDR sensors)
+BLACK_PRE  0
+
+# Sensor black level to subtract after decompanding (for most WDR sensors and all linear sensors)
+BLACK_POST  168
+
+# GAMMA value for compressing 20/24-bit WDR raw to 16-bit ISP internal
+# typically around 50 (0.5) for 24-bit WDR sensors and 70 (0.7) for 20-bit sensors
+GAMMA_PRE 70
+
+# LSB location for H3A input bit range (from bit-H3A_INPUT_LSB to bit-H3A_INPUT_LSB+9) 
+H3A_INPUT_LSB 2
+

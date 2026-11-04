@@ -83,20 +83,23 @@
 
 #include <dcc_viss_ub9xx_raw_test_pattern.h>
 
-#include <dcc_viss_ovx3c.h>
+
 #include <dcc_viss_sc2210.h>
 #include <dcc_viss_sc2210_wdr.h>
 #include <dcc_viss_imx623_wdr.h>
+#include <dcc_viss_ovx3c.h>
+#include <dcc_viss_ovx3c_wdr.h>
 #define _ENABLE_2A_
 
 #ifdef VPAC3L
 static uint8_t  dcc_viss_ov2312[DCC_VISS_OV2312_DCC_CFG_NUM_ELEM] = DCC_VISS_OV2312DCC_CFG;
 #endif
 
-static uint8_t  dcc_viss_ovx3c_linear[DCC_VISS_OVX3C_DCC_CFG_NUM_ELEM] = DCC_VISS_OVX3CDCC_CFG;
 static uint8_t  dcc_viss_sc2210_linear[DCC_VISS_SC2210_DCC_CFG_NUM_ELEM] = DCC_VISS_SC2210DCC_CFG;
 static uint8_t  dcc_viss_sc2210_wdr[DCC_VISS_SC2210_WDR_DCC_CFG_NUM_ELEM] = DCC_VISS_SC2210_WDRDCC_CFG;
 static uint8_t  dcc_viss_imx623_wdr[DCC_VISS_IMX623_WDR_DCC_CFG_NUM_ELEM] = DCC_VISS_IMX623_WDRDCC_CFG;
+static uint8_t  dcc_viss_ovx3c_linear[DCC_VISS_OVX3C_DCC_CFG_NUM_ELEM] = DCC_VISS_OVX3CDCC_CFG;
+static uint8_t  dcc_viss_ovx3c_wdr[DCC_VISS_OVX3C_WDR_DCC_CFG_NUM_ELEM] = DCC_VISS_OVX3C_WDRDCC_CFG;
 
 static uint8_t  dcc_viss_imx390[DCC_VISS_IMX390_DCC_CFG_NUM_ELEM] = DCC_VISS_IMX390DCC_CFG;
 static uint8_t  dcc_viss_imx390_wdr[DCC_VISS_IMX390_WDR_DCC_CFG_NUM_ELEM] = DCC_VISS_IMX390_WDRDCC_CFG;
@@ -138,8 +141,15 @@ static uint8_t  dcc_ldc_sc2210_linear[DCC_LDC_SC2210_DCC_CFG_NUM_ELEM] = DCC_LDC
 #include <dcc_ldc_sc2210_wdr.h>
 static uint8_t  dcc_ldc_sc2210_wdr[DCC_LDC_SC2210_WDR_DCC_CFG_NUM_ELEM] = DCC_LDC_SC2210_WDRDCC_CFG;
 
+// #include <dcc_ldc_imx623.h>
+// static uint8_t  dcc_ldc_imx623_linear[DCC_LDC_IMX623_DCC_CFG_NUM_ELEM] = DCC_LDC_IMX623DCC_CFG;
 #include <dcc_ldc_imx623_wdr.h>
 static uint8_t  dcc_ldc_imx623_wdr[DCC_LDC_IMX623_WDR_DCC_CFG_NUM_ELEM] = DCC_LDC_IMX623_WDRDCC_CFG;
+
+#include <dcc_ldc_ovx3c.h>
+static uint8_t  dcc_ldc_ovx3c_linear[DCC_LDC_OVX3C_DCC_CFG_NUM_ELEM] = DCC_LDC_OVX3CDCC_CFG;
+#include <dcc_ldc_ovx3c_wdr.h>
+static uint8_t  dcc_ldc_ovx3c_wdr[DCC_LDC_OVX3C_WDR_DCC_CFG_NUM_ELEM] = DCC_LDC_OVX3C_WDRDCC_CFG;
 
 #ifdef _ENABLE_2A_
 #include <dcc_2a_imx390.h>
@@ -171,6 +181,11 @@ static uint8_t  dcc_2a_sc2210_linear[DCC_2A_SC2210_DCC_CFG_NUM_ELEM] = DCC_2A_SC
 static uint8_t  dcc_2a_sc2210_wdr[DCC_2A_SC2210_WDR_DCC_CFG_NUM_ELEM] = DCC_2A_SC2210_WDRDCC_CFG;
 #include <dcc_2a_imx623_wdr.h>
 static uint8_t  dcc_2a_imx623_wdr[DCC_2A_IMX623_WDR_DCC_CFG_NUM_ELEM] = DCC_2A_IMX623_WDRDCC_CFG;
+#include <dcc_2a_ovx3c.h>
+static uint8_t  dcc_2a_ovx3c_linear[DCC_2A_OVX3C_DCC_CFG_NUM_ELEM] = DCC_2A_OVX3CDCC_CFG;
+#include <dcc_2a_ovx3c_wdr.h>
+static uint8_t  dcc_2a_ovx3c_wdr[DCC_2A_OVX3C_WDR_DCC_CFG_NUM_ELEM] = DCC_2A_OVX3C_WDRDCC_CFG;
+
 
 #endif
 
@@ -213,6 +228,8 @@ int32_t appIssGetDCCSizeVISS(char * sensor_name, uint32_t wdr_mode)
                 size = DCC_VISS_SC2210_WDR_DCC_CFG_NUM_ELEM;
             else if (0 == strcmp(sensor_name, SENSOR_IMX623))
                 size = DCC_VISS_IMX623_WDR_DCC_CFG_NUM_ELEM;
+            else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                size = DCC_VISS_OVX3C_WDR_DCC_CFG_NUM_ELEM; 
             else
                 size = -1;
             break;
@@ -261,6 +278,8 @@ int32_t appIssGetDCCBuffVISS(char * sensor_name, uint32_t wdr_mode,  uint8_t * d
                 memcpy(dcc_buf, dcc_viss_sc2210_wdr, num_bytes);
             else if (0 == strcmp(sensor_name, SENSOR_IMX623))
                 memcpy(dcc_buf, dcc_viss_imx623_wdr, num_bytes);
+            else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                memcpy(dcc_buf, dcc_viss_ovx3c_wdr, num_bytes);
             else
                 return -1;
             break;
@@ -289,6 +308,8 @@ int32_t appIssGetDCCSize2A(char * sensor_name, uint32_t wdr_mode)
                 size = DCC_2A_UB9XX_RAW_TEST_PATTERN_DCC_CFG_NUM_ELEM;
             else if (0 == strcmp(sensor_name, SENSOR_SC2210))
                 size = DCC_2A_SC2210_DCC_CFG_NUM_ELEM;
+            else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                size = DCC_2A_OVX3C_DCC_CFG_NUM_ELEM;
             else
                 size = -1;
             break;
@@ -304,6 +325,8 @@ int32_t appIssGetDCCSize2A(char * sensor_name, uint32_t wdr_mode)
                 size = DCC_2A_SC2210_WDR_DCC_CFG_NUM_ELEM;
             else if (0 == strcmp(sensor_name, SENSOR_IMX623))
                 size = DCC_2A_IMX623_WDR_DCC_CFG_NUM_ELEM;
+            else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                size = DCC_2A_OVX3C_WDR_DCC_CFG_NUM_ELEM; 
             else
                 size = -1;
             break;
@@ -330,6 +353,8 @@ int32_t appIssGetDCCBuff2A(char * sensor_name, uint32_t wdr_mode,  uint8_t * dcc
                 memcpy(dcc_buf, dcc_2a_ub9xx_raw_test_pattern_linear, num_bytes);
             else if (0 == strcmp(sensor_name, SENSOR_SC2210))
                 memcpy(dcc_buf, dcc_2a_sc2210_linear, num_bytes);
+            else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                memcpy(dcc_buf, dcc_2a_ovx3c_linear, num_bytes);
             else
                 return -1;
             break;
@@ -345,6 +370,8 @@ int32_t appIssGetDCCBuff2A(char * sensor_name, uint32_t wdr_mode,  uint8_t * dcc
                 memcpy(dcc_buf, dcc_2a_sc2210_wdr, num_bytes);
             else if (0 == strcmp(sensor_name, SENSOR_IMX623))
                 memcpy(dcc_buf, dcc_2a_imx623_wdr, num_bytes);
+            else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                memcpy(dcc_buf, dcc_2a_ovx3c_wdr, num_bytes);
             else
                 return -1;
             break;
@@ -384,6 +411,10 @@ int32_t appIssGetDCCSizeLDC(char * sensor_name, uint32_t wdr_mode)
                     size = DCC_LDC_UB9XX_RAW_TEST_PATTERN_DCC_CFG_NUM_ELEM;
                 else if (0 == strcmp(sensor_name, SENSOR_SC2210))
                     size = DCC_LDC_SC2210_DCC_CFG_NUM_ELEM;
+                // else if (0 == strcmp(sensor_name, SENSOR_IMX623))
+                //     size = DCC_LDC_IMX623_DCC_CFG_NUM_ELEM; 
+                else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                    size = DCC_LDC_OVX3C_DCC_CFG_NUM_ELEM; 
                 else
                     size = -1;
                 break;
@@ -399,6 +430,8 @@ int32_t appIssGetDCCSizeLDC(char * sensor_name, uint32_t wdr_mode)
                     size = DCC_LDC_SC2210_WDR_DCC_CFG_NUM_ELEM;
                 else if (0 == strcmp(sensor_name, SENSOR_IMX623))
                     size = DCC_LDC_IMX623_WDR_DCC_CFG_NUM_ELEM;
+                else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                    size = DCC_LDC_OVX3C_WDR_DCC_CFG_NUM_ELEM; 
                 else
                     size = -1;
                 break;
@@ -438,6 +471,10 @@ int32_t appIssGetDCCBuffLDC(char * sensor_name, uint32_t wdr_mode,  uint8_t * dc
                     memcpy(dcc_buf, dcc_ldc_ub9xx_raw_test_pattern_linear, num_bytes);
                 else if (0 == strcmp(sensor_name, SENSOR_SC2210))
                     memcpy(dcc_buf, dcc_ldc_sc2210_linear, num_bytes);
+                // else if (0 == strcmp(sensor_name, SENSOR_IMX623))
+                //     memcpy(dcc_buf, dcc_ldc_imx623_linear, num_bytes);
+                else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                    memcpy(dcc_buf, dcc_ldc_ovx3c_linear, num_bytes);
                 else
                     return -1;
                 break;
@@ -453,6 +490,8 @@ int32_t appIssGetDCCBuffLDC(char * sensor_name, uint32_t wdr_mode,  uint8_t * dc
                     memcpy(dcc_buf, dcc_ldc_sc2210_wdr, num_bytes);
                 else if (0 == strcmp(sensor_name, SENSOR_IMX623))
                     memcpy(dcc_buf, dcc_ldc_imx623_wdr, num_bytes);
+                else if (0 == strcmp(sensor_name, SENSOR_OVX3C))
+                    memcpy(dcc_buf, dcc_ldc_ovx3c_wdr, num_bytes);
                 else
                     return -1;
                 break;

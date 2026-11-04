@@ -235,10 +235,7 @@ static int32_t dwb_lut[] =
     #include "dwb_lut.txt"
 };
 
-static int32_t cac_lut[CAC_LUT_SIZE] =
-{
-    #include "cac_lut.txt"
-};
+static int32_t cac_lut[CAC_LUT_SIZE] = {0};
 #endif
 
 /* ========================================================================== */
@@ -1329,7 +1326,7 @@ static void tivxVpacVissDefaultMapPwlParams(tivxVpacVissObj *vissObj,
             pwlCfg->gain[2u]     = 512u;
             pwlCfg->gain[3u]     = 512u;
 
-            pwlCfg->enable       = 1u;  // 修改: 启用PWL for WDR
+            pwlCfg->enable       = 0u;
             pwlCfg->xthr1        = 128u;
             pwlCfg->xthr2        = 256u;
             pwlCfg->xthr3        = 512u;
@@ -1343,8 +1340,8 @@ static void tivxVpacVissDefaultMapPwlParams(tivxVpacVissObj *vissObj,
             pwlCfg->slopeShift   = 0u;
             pwlCfg->outClip      = 65535;
 
-            lutCfg->enable       = 1u;  // 修改: 启用LUT for Decompand
-            lutCfg->inputBits    = 12u;  // 修改: 匹配12位压缩格式
+            lutCfg->enable       = 0u;
+            lutCfg->inputBits    = 20u;
             lutCfg->clip         = 65535;
             lutCfg->tableAddr    = grawfe_pwl_long_lut;
 
@@ -1367,7 +1364,7 @@ static void tivxVpacVissDefaultMapPwlParams(tivxVpacVissObj *vissObj,
             pwlCfg->gain[2u]    = 512u;     //U13Q9
             pwlCfg->gain[3u]    = 512u;     //U13Q9
 
-            pwlCfg->enable      = 1u;  // 修改: 启用PWL for WDR
+            pwlCfg->enable      = 0u;
             pwlCfg->xthr1       = 128u;       /* 16 bits */
             pwlCfg->xthr2       = 128u;
             pwlCfg->xthr3       = 512u;
@@ -1381,8 +1378,8 @@ static void tivxVpacVissDefaultMapPwlParams(tivxVpacVissObj *vissObj,
             pwlCfg->slopeShift  = 0u;  /* Shift for Q point of slope */
             pwlCfg->outClip     = 65535;     /* 24 bits */
 
-            lutCfg->enable       = 1u;  // 修改: 启用LUT for Decompand
-            lutCfg->inputBits    = 12u;  // 修改: 匹配12位压缩格式
+            lutCfg->enable       = 0u;
+            lutCfg->inputBits    = 20u;
             lutCfg->clip         = 65535;
             lutCfg->tableAddr    = grawfe_pwl_short_lut;
 
@@ -1405,7 +1402,7 @@ static void tivxVpacVissDefaultMapPwlParams(tivxVpacVissObj *vissObj,
             pwlCfg->gain[2u]    = 512u;     //U13Q9
             pwlCfg->gain[3u]    = 512u;     //U13Q9
 
-            pwlCfg->enable      = 1u;  // 修改: 启用PWL for WDR
+            pwlCfg->enable      = 0u;
             pwlCfg->xthr1       = 512u;       /* 16 bits */
             pwlCfg->xthr2       = 1408u;
             pwlCfg->xthr3       = 2176u;
@@ -1419,8 +1416,8 @@ static void tivxVpacVissDefaultMapPwlParams(tivxVpacVissObj *vissObj,
             pwlCfg->slopeShift  = 0u;  /* Shift for Q point of slope */
             pwlCfg->outClip     = 1048575;     /* 24 bits */
 
-            lutCfg->enable      = 1u;  // 修改: 启用LUT for Decompand
-            lutCfg->inputBits   = 12u;  // 修改: 匹配12位压缩格式
+            lutCfg->enable      = 0u;
+            lutCfg->inputBits   = 20u;
             lutCfg->clip        = 65535;
             lutCfg->tableAddr   = grawfe_pwl_vshort_lut;
 
@@ -1468,4 +1465,3 @@ static void tivxVpacVissDefaultMapRfeParams(tivxVpacVissObj *vissObj)
         tivxVpacVissDefaultMapRfeLutParams(vissObj, 1u);
     }
 }
-

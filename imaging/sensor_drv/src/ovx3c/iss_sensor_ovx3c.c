@@ -60,6 +60,7 @@
  *
  */
 #include "iss_sensor_ovx3c.h"
+#include "ovx3c_gain_table.h"
 
 /*;@@ X3C_1920x1080_60fps_HDR4_LFR_PWL12_mipi600 
 ; Sensor revision: OX03C10 R1D
@@ -91,18 +92,18 @@ static IssSensor_CreateParams  OVX3CCreatePrms = {
     /*IssSensor_Info*/
     {
         {
-            1920,                               /*width*/
-            1080,                               /*height*/
+            1920,                               /*width (active pixels)*/
+            1080,                               /*height (active pixels)*/
             1,                                  /*num_exposures*/
             vx_false_e,                         /*line_interleaved*/
             {
                 {TIVX_RAW_IMAGE_16_BIT, 11},    /*dataFormat and MSB [0] TIVX_RAW_IMAGE_P12_BIT TIVX_RAW_IMAGE_16_BIT Unpacked 16-bit: 1920*1080*2 = 4,147,200 字节*/
             },
             0,                                  /*meta_height_before*/
-            0,                                  /*meta_height_after*/
+            4,                                  /*meta_height_after - OVX3C outputs 4 embedded lines*/
         },
         ISS_SENSOR_OVX3C_FEATURES,              /*features*/
-        ALGORITHMS_ISS_AEWB_MODE_NONE,          /*aewbMode ALGORITHMS_ISS_AEWB_MODE_NONE ALGORITHMS_ISS_AEWB_MODE_AEWB*/
+        ALGORITHMS_ISS_AEWB_MODE_AEWB,          /*aewbMode - Enable AE and AWB for AEWB module*/
         30,                                     /*fps 60:ox03c10_linear_4lane_60fps_2m_12bit_init_all; 30:ox03c10_linear_4lane_30fps_2m_12bit_init_all*/
         4,                                      /*numDataLanes*/
         {1, 2, 3, 4},                           /*dataLanesMap*/
@@ -151,6 +152,10 @@ IssSensors_Handle OVX3CSensorHandle = {
 //IssCapture_CmplxIoLaneCfg           OVX3CCsi2CmplxIoLaneCfg;
 extern IssSensors_Handle * gIssSensorTable[ISS_SENSORS_MAX_SUPPORTED_SENSOR];
 static uint16_t sp1hGainRegValueOld[ISS_SENSORS_MAX_CHANNEL];
+/* AE history tracking for OVX3C */
+static uint16_t expRegValueOld[ISS_SENSORS_MAX_CHANNEL];
+static uint16_t coarseGainRegValueOld[ISS_SENSORS_MAX_CHANNEL];
+static uint16_t fineGainRegValueOld[ISS_SENSORS_MAX_CHANNEL];
 static uint16_t redGain_prev[ISS_SENSORS_MAX_CHANNEL];
 static uint16_t greenGain_prev[ISS_SENSORS_MAX_CHANNEL];
 static uint16_t blueGain_prev[ISS_SENSORS_MAX_CHANNEL];
@@ -164,7 +169,7 @@ int32_t IssSensor_OVX3C_Init()
     {
         printf("IssSensor_OVX3C_Init failed \n");
     }
-    printf("IssSensor_OVX3C_Init is ok \n");
+    printf("IssSensor_OVX3C_Init 0420 is ok \n");
 
     return status;
 }
@@ -216,17 +221,7 @@ static int32_t OVC3C_RunSensorConfigScript(uint32_t i2cInstId, uint8_t sensorI2c
                appLogWaitMsecs(delayMilliSec);
                issLogPrintf(" \n \n OVC3C: regAddr 0x%x, delayMilliSec=%d ms \n \n", regAddr, delayMilliSec);
             }
-            // /*check write is ok*/
-            // status = OVX3C_ReadReg(i2cInstId, sensorI2cAddr, regAddr, &checkValue, 1u);
-            // if (checkValue != regValue)
-            // {
-            //     issLogPrintf("Config : check write regAddr:%x write_regValue:0x%x vs read_checkValue:0x%x, is error !!! status=%d \n",regAddr, regValue, checkValue, status);
-            //     // return status;
-            // }
-            // else
-            // {
-            //     issLogPrintf("Config : check write regAddr:%x write_regValue:0x%x vs read_checkValue:0x%x, is ok !!! status=%d \n",regAddr, regValue, checkValue, status);
-            // }
+ 
             regCnt++;
             regAddr  = sensorCfg[regCnt].nRegAddr;
             regValue = sensorCfg[regCnt].nRegValue;
@@ -256,7 +251,7 @@ static int32_t OVX3C_Config(uint32_t chId, void *pSensorHdl, uint32_t sensor_fea
     uint32_t i2cInstId     = pCreatePrms->i2cInstId;
     uint8_t regValue = 0;
     uint32_t sensorConfigSize = 0;
-    
+
     appLogWaitMsecs(100);
 #if 0
     uint32_t serdesConfigSize = 0;
@@ -279,20 +274,30 @@ static int32_t OVX3C_Config(uint32_t chId, void *pSensorHdl, uint32_t sensor_fea
     appLogWaitMsecs(100);
 #endif
 
-    #if 1
-    sensorConfigSize = sizeof(ox03c10_linear_4lane_60fps_2m_12bit_init_all) / sizeof(I2cParams);
-    status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_linear_4lane_60fps_2m_12bit_init_all, sensorConfigSize);
-    #else
-    sensorConfigSize = sizeof(ox03c10_linear_4lane_30fps_2m_12bit_init_all) / sizeof(I2cParams);
-    status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_linear_4lane_30fps_2m_12bit_init_all, sensorConfigSize);
-    #endif
+    if(sensor_features_requested & ISS_SENSOR_FEATURE_COMB_COMP_WDR_MODE)
+    {
+        issLogPrintf("------------------------------------->0422 is wdr Config : OVC3C_RunSensorConfigScript is ok !!!\n");
+        sensorConfigSize = sizeof(ox03c10_built_in_4lane_30fps_2m_12bit_init_all) / sizeof(I2cParams);
+        status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_built_in_4lane_30fps_2m_12bit_init_all, sensorConfigSize);
+    }
+    else 
+    {
+        issLogPrintf("------------------------------------->0422 is linear Config : OVC3C_RunSensorConfigScript is ok !!!\n");
+        #if 1
+        sensorConfigSize = sizeof(ox03c10_linear_4lane_60fps_2m_12bit_init_all) / sizeof(I2cParams);
+        status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_linear_4lane_60fps_2m_12bit_init_all, sensorConfigSize);
+        #else
+        sensorConfigSize = sizeof(ox03c10_linear_4lane_30fps_2m_12bit_init_all) / sizeof(I2cParams);
+        status = OVC3C_RunSensorConfigScript(i2cInstId, i2cAddrSensor, ox03c10_linear_4lane_30fps_2m_12bit_init_all, sensorConfigSize);
+        #endif
+    }
 
     if (status != 0)
     {
         issLogPrintf("Config error : OVC3C_RunSensorConfigScript is error !!!\n");
         return status;
     }
-    issLogPrintf("Config : OVC3C_RunSensorConfigScript is ok !!!\n");
+    
     appLogWaitMsecs(100);
     
     return (status);
@@ -334,125 +339,15 @@ static int32_t OVX3C_StreamOn(uint32_t chId, void *pSensorHdl)
 static int32_t OVX3C_StreamOff(uint32_t chId, void *pSensorHdl)
 {
     int32_t status = 0;
-
+    issLogPrintf("OVX3C_StreamOff  -------------------> \n");
     return status;
 }
 
 static int32_t OVX3C_PowerOn(uint32_t chId, void *pSensorHdl)
 {
     int32_t status = 0;
-    printf("OVX3C_PowerOn : chId = 0x%x \n", chId);
-#if 0
-    issLogPrintf("OVX3C_PowerOn  -------------------> start  chId:%d\n", chId);
-    IssSensors_Handle * pSenHandle = (IssSensors_Handle*)pSensorHdl;
-    assert(pSenHandle != NULL);
-    IssSensor_CreateParams * pCreatePrms = pSenHandle->createPrms;
-    assert(pCreatePrms != NULL);
-    uint8_t regVal = 0;
-    // uint8_t  i2cAddrSensor = pCreatePrms->i2cAddrSensor[chId];
-    uint32_t i2cInstId     = pCreatePrms->i2cInstId;
-    /*CSI2 Expansion Interface Reset ('0' - device reset, '1' - normal*/
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x00, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn: OVX3C_ReadReg 0x20: 0x00:%x \n", regVal);
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x01, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn: OVX3C_ReadReg 0x20: 0x00:%x \n", regVal);
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x02, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("-----default=1------>OVX3C_PowerOn:addr:0x20 OVX3C_ReadReg : 0x02:%x \n", regVal);
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x03, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn: OVX3C_ReadReg 0x20: 0x00:%x \n", regVal);
 
-    /*// Step 1: 配置 P0 为输出 (C-0 = 0)
-I2C_Write(0x20, 0x03, 0xFE); // 0b11111110 → C-0 = 0
-
-// Step 2: 拉低 P0，触发复位
-I2C_Write(0x20, 0x01, 0x00); // O-0 = 0 → RSTz = LOW
-
-// Delay for reset duration (e.g., 1ms)
-delay(1);
-
-// Step 3: 拉高 P0，解除复位
-I2C_Write(0x20, 0x01, 0x01); // O-0 = 1 → RSTz = HIGH*/
-    regVal = 0xFE;
-    status |= OVX3C_WriteReg(i2cInstId, 0x20, 0x03, regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: OVX3C_WriteReg error \n");
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn reset low: OVX3C_WriteReg 0x20: 0x03:%x \n", regVal);
-    appLogWaitMsecs(20);
-    regVal = 0x0;
-    status |= OVX3C_WriteReg(i2cInstId, 0x20, 0x01, regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: OVX3C_WriteReg error \n");
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn reset high: OVX3C_WriteReg 0x20: 0x01:%x \n", regVal);
-    regVal = 0x1;
-    status |= OVX3C_WriteReg(i2cInstId, 0x20, 0x01, regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: OVX3C_WriteReg error \n");
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn reset high: OVX3C_WriteReg 0x20: 0x01:%x \n", regVal);
-    appLogWaitMsecs(20);
-
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x00, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn: OVX3C_ReadReg 0x20: 0x00:%x \n", regVal);
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x01, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn: OVX3C_ReadReg 0x20: 0x01:%x \n", regVal);
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x02, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("-----default=1------>OVX3C_PowerOn:addr:0x20 OVX3C_ReadReg : 0x02:%x \n", regVal);
-    status = OVX3C_ReadReg(i2cInstId, 0x20, 0x03, &regVal, 1u);
-    if (status != 0)
-    {
-        issLogPrintf("OVX3C_PowerOn: addr:%x OVX3C_WriteReg =%x error \n", 0x20, regVal);
-        return status;
-    }
-    issLogPrintf("----------->OVX3C_PowerOn: OVX3C_ReadReg 0x20: 0x03:%x \n", regVal);
-#else
-
-
-#endif
-
-    issLogPrintf("OVX3C_PowerOn  & sensor  is reset -------------------> end\n");
+    issLogPrintf("OVX3C_PowerOn -------------------> \n");
 
     return status;
 }
@@ -464,9 +359,97 @@ static int32_t OVX3C_PowerOff(uint32_t chId, void *pSensorHdl)
 
 static int32_t OVX3C_SetAeParams(void *pSensorHdl, uint32_t chId, IssSensor_ExposureParams *pExpPrms)
 {
+    uint16_t regAddr;
+    uint16_t extRegValue;
+    uint16_t coarseGainRegValue = 0;
+    uint16_t fineGainRegValue = 0;
     int32_t status = 0;
+    IssSensors_Handle *pSenHandle = (IssSensors_Handle*)pSensorHdl;
+    IssSensor_CreateParams *pCreatePrms;
+    uint32_t lineIntgTimeInNs = OVX3C_LINE_LEN_TIME_NS;
+    uint32_t maxCoarseIntgRows = OVX3C_MAX_EXP_ROWS;
+    uint32_t minCoarseIntgRows = OVX3C_MIN_EXP_ROWS;
+    uint16_t cnt;
+    uint16_t analog_coarse_gain = 0U;
+    uint16_t analog_fine_gain = 0;
 
-    printf("--------------> OVX3C_SetAeParams \n");
+    assert(NULL != pSenHandle);
+    pCreatePrms = pSenHandle->createPrms;
+    assert(NULL != pCreatePrms);
+
+    regAddr = OVX3C_EXP_COARSE_ADDR;
+    extRegValue = (uint16_t)((pExpPrms->exposureTime[ISS_SENSOR_EXPOSURE_LONG] * 1000) / lineIntgTimeInNs);
+
+    /* Apply exposure limits */
+    if (extRegValue > maxCoarseIntgRows)
+    {
+        extRegValue = maxCoarseIntgRows;
+    }
+    else if (extRegValue < minCoarseIntgRows)
+    {
+        extRegValue = minCoarseIntgRows;
+    }
+
+    if (extRegValue != expRegValueOld[chId])
+    {
+        status |= OVX3C_WriteReg(pCreatePrms->i2cInstId, pCreatePrms->i2cAddrSensor[chId], 
+                                  OVX3C_GROUP_HOLD_ADDR, 0x00, 1u);
+        status |= OVX3C_WriteReg(pCreatePrms->i2cInstId, pCreatePrms->i2cAddrSensor[chId], 
+                                  OVX3C_EXP_COARSE_ADDR, (extRegValue >> 8) & 0xFF, 1u);
+        status |= OVX3C_WriteReg(pCreatePrms->i2cInstId, pCreatePrms->i2cAddrSensor[chId], 
+                                  OVX3C_EXP_FINE_ADDR, extRegValue & 0xFF, 1u);
+        
+        expRegValueOld[chId] = extRegValue;
+    }
+
+    /* Look up analog gain from table */
+    for (cnt = 0; cnt < ISS_SENSORS_OVX3C_ANALOG_GAIN_TBL_SIZE; cnt++)
+    {
+        if (pExpPrms->analogGain[ISS_SENSOR_EXPOSURE_LONG] <= ovx3cGainsTable[cnt][0])
+        {
+            analog_coarse_gain = (uint16_t)ovx3cGainsTable[cnt][1];
+            analog_fine_gain = (uint16_t)ovx3cGainsTable[cnt][2];
+            break;
+        }
+    }
+
+    /* If target gain exceeds table, use maximum */
+    if (cnt >= ISS_SENSORS_OVX3C_ANALOG_GAIN_TBL_SIZE)
+    {
+        analog_coarse_gain = (uint16_t)ovx3cGainsTable[ISS_SENSORS_OVX3C_ANALOG_GAIN_TBL_SIZE - 1][1];
+        analog_fine_gain = (uint16_t)ovx3cGainsTable[ISS_SENSORS_OVX3C_ANALOG_GAIN_TBL_SIZE - 1][2];
+    }
+
+    coarseGainRegValue = analog_coarse_gain;
+    fineGainRegValue = analog_fine_gain;
+
+    /* Only update if gain values changed */
+    if ((coarseGainRegValue != coarseGainRegValueOld[chId]) ||
+        (fineGainRegValue != fineGainRegValueOld[chId]))
+    {
+        if (extRegValue == expRegValueOld[chId])
+        {
+            status |= OVX3C_WriteReg(pCreatePrms->i2cInstId, pCreatePrms->i2cAddrSensor[chId], 
+                                      OVX3C_GROUP_HOLD_ADDR, 0x00, 1u);
+        }
+        
+        status |= OVX3C_WriteReg(pCreatePrms->i2cInstId, pCreatePrms->i2cAddrSensor[chId], 
+                                  OVX3C_ANALOG_GAIN_ADDR, coarseGainRegValue, 1u);
+        status |= OVX3C_WriteReg(pCreatePrms->i2cInstId, pCreatePrms->i2cAddrSensor[chId], 
+                                  OVX3C_ANALOG_GAIN_LOW_ADDR, fineGainRegValue, 1u);
+        
+        coarseGainRegValueOld[chId] = coarseGainRegValue;
+        fineGainRegValueOld[chId] = fineGainRegValue;
+    }
+
+    if ((extRegValue != expRegValueOld[chId]) ||
+        (coarseGainRegValue != coarseGainRegValueOld[chId]) ||
+        (fineGainRegValue != fineGainRegValueOld[chId]))
+    {
+        status |= OVX3C_WriteReg(pCreatePrms->i2cInstId, pCreatePrms->i2cAddrSensor[chId], 
+                                  OVX3C_GROUP_HOLD_ADDR, 0x01, 1u);
+    }
+
     return (status);
 }
 
@@ -586,21 +569,106 @@ static int32_t OVX3C_WriteReg(uint8_t    i2cInstId,
 static int32_t OVX3C_GetExpPrgFxn(uint32_t chId, void *pSensorHdl, IssAeDynamicParams *p_ae_dynPrms)
 {
     int32_t status = 0;
-    printf("--------------> OVX3C_GetExpPrgFxn \n");
-    return (status);
+    uint8_t count = 0;
+
+    p_ae_dynPrms->targetBrightnessRange.min = 50;
+    p_ae_dynPrms->targetBrightnessRange.max = 60;
+    p_ae_dynPrms->targetBrightness = 55;
+    p_ae_dynPrms->threshold = 10;
+    p_ae_dynPrms->exposureTimeStepSize = 100;
+    p_ae_dynPrms->enableBlc = 0;
+
+    p_ae_dynPrms->exposureTimeRange[count].min = 1000;        // 1ms minimum
+    p_ae_dynPrms->exposureTimeRange[count].max = 60000000;   // 60ms maximum
+
+    p_ae_dynPrms->analogGainRange[count].min = 256;   // 1x
+    p_ae_dynPrms->analogGainRange[count].max = 2048;   // 8x
+
+    p_ae_dynPrms->digitalGainRange[count].min = 256;   // 1x
+    p_ae_dynPrms->digitalGainRange[count].max = 256;   // 1x (OVX3C 不使用数字增益)
+    count++;
+
+    p_ae_dynPrms->numAeDynParams = count;
+
+    printf("[OVX3C] GetExpPrgFxn: ExpRange[%d-%d]ns, GainRange[%d-%d]\n",
+           p_ae_dynPrms->exposureTimeRange[0].min,
+           p_ae_dynPrms->exposureTimeRange[0].max,
+           p_ae_dynPrms->analogGainRange[0].min,
+           p_ae_dynPrms->analogGainRange[0].max);
+
+    return status;
 }
 
 static int32_t OVX3C_GetWBPrgFxn(uint32_t chId, void *pSensorHdl, IssAwbDynamicParams *p_awb_dynPrms)
 {
-    int32_t  status = 0;
-    printf("--------------> OVX3C_GetWBPrgFxn \n");
-    return (status);
+    int32_t status = 0;
+
+    p_awb_dynPrms->redGainRange.min = 128;    // 0.5x
+    p_awb_dynPrms->redGainRange.max = 512;    // 2x
+
+    p_awb_dynPrms->greenGainRange.min = 128;  // 0.5x
+    p_awb_dynPrms->greenGainRange.max = 512;  // 2x
+
+    p_awb_dynPrms->blueGainRange.min = 128;   // 0.5x
+    p_awb_dynPrms->blueGainRange.max = 512;   // 2x
+
+    printf("[OVX3C] GetWBPrgFxn: R[%d-%d] G[%d-%d] B[%d-%d]\n",
+           p_awb_dynPrms->redGainRange.min, p_awb_dynPrms->redGainRange.max,
+           p_awb_dynPrms->greenGainRange.min, p_awb_dynPrms->greenGainRange.max,
+           p_awb_dynPrms->blueGainRange.min, p_awb_dynPrms->blueGainRange.max);
+
+    return status;
 }
 
 static int32_t OVX3C_SetAwbParams(void *pSensorHdl, uint32_t chId, IssSensor_WhiteBalanceParams *pWbPrms)
 {
     int32_t status = 0;
+    IssSensors_Handle *pSenHandle = (IssSensors_Handle*)pSensorHdl;
+    IssSensor_CreateParams *pCreatePrms;
 
-    printf("--------------> OVX3C_SetAwbParams \n");
-    return (status);
+    uint32_t i2cInstId;
+    uint8_t  sensorI2cAddr;
+    uint16_t rgain, ggain, bgain;
+
+    assert(pSenHandle != NULL);
+    pCreatePrms = pSenHandle->createPrms;
+    assert(pCreatePrms != NULL);
+
+    i2cInstId     = pCreatePrms->i2cInstId;
+    sensorI2cAddr = pCreatePrms->i2cAddrSensor[chId];
+
+    rgain = (uint16_t)pWbPrms->rGain[ISS_SENSOR_EXPOSURE_LONG];
+    ggain = (uint16_t)pWbPrms->gGain[ISS_SENSOR_EXPOSURE_LONG];
+    bgain = (uint16_t)pWbPrms->bGain[ISS_SENSOR_EXPOSURE_LONG];
+
+    if(rgain < 128) rgain = 128;
+    if(rgain > 512) rgain = 512;
+    if(ggain < 128) ggain = 128;
+    if(ggain > 512) ggain = 512;
+    if(bgain < 128) bgain = 128;
+    if(bgain > 512) bgain = 512;
+
+    printf("[OVX3C] AWB Update: R=%d(0x%04x), G=%d(0x%04x), B=%d(0x%04x)\n",
+           rgain, rgain, ggain, ggain, bgain, bgain);
+
+    // Start Group Hold
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3507, 0x00, 1u);
+
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3540, (rgain >> 8) & 0xFF, 1u);
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3541, rgain & 0xFF, 1u);
+
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3542, (ggain >> 8) & 0xFF, 1u);
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3543, ggain & 0xFF, 1u);
+
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3544, (bgain >> 8) & 0xFF, 1u);
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3545, bgain & 0xFF, 1u);
+
+    // Launch Group Hold
+    status |= OVX3C_WriteReg(i2cInstId, sensorI2cAddr, 0x3507, 0x01, 1u);
+
+    if (status != 0) {
+        printf("[OVX3C] Warning: Some WB registers write failed (sensor may not support WB via registers)\n");
+    }
+
+    return 0;
 }

@@ -1481,10 +1481,8 @@ static vx_status app_create_graph(AppObj *obj)
         }
         if((obj->enable_aewb == 1) && (status == VX_SUCCESS))
         {
-            if (status == VX_SUCCESS)
-            {
-                status = tivxSetNodeParameterNumBufByIndex(obj->aewbObj.node, 4, APP_BUFFER_Q_DEPTH);
-            }
+            // tivxSetNodeParameterNumBufByIndex(obj->vissObj.node, 9, APP_BUFFER_Q_DEPTH);
+            status = tivxSetNodeParameterNumBufByIndex(obj->aewbObj.node, 4, APP_BUFFER_Q_DEPTH);
         }
         if((obj->sensorObj.enable_ldc == 1) && (status == VX_SUCCESS))
         {

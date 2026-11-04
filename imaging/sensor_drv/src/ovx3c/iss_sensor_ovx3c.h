@@ -72,6 +72,7 @@
 
 #include "ox03c10_linear_4lane_60fps_2m_12bit_init_all.h"
 #include "ox03c10_linear_4lane_30fps_2m_12bit_init_all.h"
+#include "ox03c10_built_in_4lane_30fps_2m_12bit_init_all.h"
 
 /*******************************************************************************
  *  Defines
@@ -86,55 +87,35 @@
                                          ISS_SENSOR_FEATURE_LINEAR_MODE|       \
                                          ISS_SENSOR_FEATURE_COMB_COMP_WDR_MODE|       \
                                          ISS_SENSOR_FEATURE_DCC_SUPPORTED)*/
+// #define ISS_SENSOR_OVX3C_FEATURES      (ISS_SENSOR_FEATURE_MANUAL_EXPOSURE |   \
+//                                         ISS_SENSOR_FEATURE_MANUAL_GAIN |       \
+//                                         ISS_SENSOR_FEATURE_LINEAR_MODE |       \
+//                                         ISS_SENSOR_FEATURE_DCC_SUPPORTED)
+
 #define ISS_SENSOR_OVX3C_FEATURES      (ISS_SENSOR_FEATURE_MANUAL_EXPOSURE |   \
                                         ISS_SENSOR_FEATURE_MANUAL_GAIN |       \
-                                        ISS_SENSOR_FEATURE_LINEAR_MODE)
+                                        ISS_SENSOR_FEATURE_DCC_SUPPORTED |       \
+                                        ISS_SENSOR_FEATURE_COMB_COMP_WDR_MODE)
 
-#define ISS_OVX3C_GAIN_TBL_STEP_SIZE           (100U)
-#define ISS_OVX3C_GAIN_TBL_STARTOFFSET         (10U)
-#define ISS_OVX3C_MAX_INTG_LINES               (2050U)
-#define ISS_OVX3C_VMAX                         (0x44c)
-#define ISS_OVX3C_RHS                          (0x85U)
+/*******************************************************************************
+ *  AE Parameters
+ *******************************************************************************
+ */
+/* OVX3C (OX03C10) timing parameters for 1920x1080@30fps */
+#define OVX3C_LINE_LEN_TIME_NS        (106167U)    /* HTS(2548) / 24MHz = ~106.167us */
+#define OVX3C_MAX_EXP_ROWS             (0x248)      /* Max exposure rows (585 = 0x249, use 584) */
+#define OVX3C_MIN_EXP_ROWS            (2U)         /* Min exposure rows */
 
-#define OVX3C_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR         (0x0018U)
-#define OVX3C_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        OVX3C_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
-#define OVX3C_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR         (0x001AU)
-#define OVX3C_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        OVX3C_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
+/* OVX3C analog gain registers */
+#define OVX3C_EXP_COARSE_ADDR         (0x3501U)     /* Coarse integration time high byte */
+#define OVX3C_EXP_FINE_ADDR           (0x3502U)     /* Fine integration time low byte */
+#define OVX3C_ANALOG_GAIN_ADDR        (0x3508U)     /* Analog gain high byte */
+#define OVX3C_ANALOG_GAIN_LOW_ADDR    (0x3509U)     /* Analog gain low byte */
+#define OVX3C_GROUP_HOLD_ADDR         (0x3507U)     /* Group hold register */
 
-#define OVX3C_VMAX                         (0x465U)
+/* OVX3C analog gain table size */
+#define ISS_SENSORS_OVX3C_ANALOG_GAIN_TBL_SIZE    (15U)
 
-#define OVX3C_AE_CONTROL_LONG_REG_ADDR_LOW   (0x000C)
-#define OVX3C_AE_CONTROL_LONG_REG_ADDR_HIGH   ( \
-        OVX3C_AE_CONTROL_LONG_REG_ADDR_LOW + 1)
-#define OVX3C_AE_CONTROL_LONG_REG_ADDR_TOP   ( \
-        OVX3C_AE_CONTROL_LONG_REG_ADDR_HIGH + 1)
-
-#define OVX3C_AE_CONTROL_SHORT_REG_ADDR_LOW   (0x0010)
-#define OVX3C_AE_CONTROL_SHORT_REG_ADDR_HIGH  ( \
-        OVX3C_AE_CONTROL_SHORT_REG_ADDR_LOW + 1)
-#define OVX3C_AE_CONTROL_SHORT_REG_ADDR_MSB   ( \
-        OVX3C_AE_CONTROL_SHORT_REG_ADDR_HIGH + 1)
-
-
-#define OVX3C_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR         (0x0018U)
-#define OVX3C_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        OVX3C_SP1H_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
-
-#define OVX3C_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR         (0x001AU)
-#define OVX3C_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR_HIGH    ( \
-        OVX3C_SP1L_ANALOG_GAIN_CONTROL_REG_ADDR + 1U)
-
-#define OVX3C_RED_GAIN_REG_L                (0x0030U)
-#define OVX3C_RED_GAIN_REG_H                (0x0031U)
-#define OVX3C_GREEN1_GAIN_REG_L             (0x0032U)
-#define OVX3C_GREEN1_GAIN_REG_H             (0x0033U)
-#define OVX3C_GREEN2_GAIN_REG_L             (0x0034U)
-#define OVX3C_GREEN2_GAIN_REG_H             (0x0035U)
-#define OVX3C_BLUE_GAIN_REG_L               (0x0036U)
-#define OVX3C_BLUE_GAIN_REG_H               (0x0037U)
-#define OVX3C_ISP_GAIN_OFFSET               (1U)
 
 /*******************************************************************************
  *  Local Functions Declarations
