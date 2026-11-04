@@ -10,6 +10,7 @@ CSOURCES    += tivx_fileio_node_api.c
 CSOURCES    += tivx_fileio_write_array_host.c
 CSOURCES    += tivx_fileio_write_image_host.c
 CSOURCES    += tivx_fileio_write_raw_image_host.c
+CSOURCES    += tivx_fileio_write_raw_image_hdr_host.c
 CSOURCES    += tivx_fileio_write_tensor_host.c
 CSOURCES    += tivx_fileio_write_user_data_object_host.c
 

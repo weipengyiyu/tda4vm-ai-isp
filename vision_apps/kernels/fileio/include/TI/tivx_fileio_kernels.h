@@ -40,6 +40,11 @@ extern "C" {
  */
 #define TIVX_KERNEL_WRITE_RAW_IMAGE_NAME     "com.ti.fileio.write.tivx_raw_image"
 
+/*! \brief Kernel Name: Write tivx_raw_image_hdr
+ *  \see group_vision_apps_kernels_fileio
+ */
+#define TIVX_KERNEL_WRITE_RAW_IMAGE_HDR_NAME     "com.ti.fileio.write.tivx_raw_image_hdr"
+
 /*! \brief Kernel Name: Write vx_tensor
  *  \see group_vision_apps_kernels_fileio
  */

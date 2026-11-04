@@ -114,6 +114,21 @@ VX_API_ENTRY vx_node VX_API_CALL tivxWriteRawImageNode(vx_graph   graph,
     return node;
 }
 
+VX_API_ENTRY vx_node VX_API_CALL tivxWriteRawImageHdrNode(vx_graph   graph,
+                                                       tivx_raw_image   in_raw_image,
+                                                       tivx_raw_image   out_hdr_raw_image)
+{
+    vx_reference prms[] = {
+            (vx_reference)in_raw_image,     /* 0: input raw image */
+            (vx_reference)out_hdr_raw_image          /* 1: HDR transpose output ObjectArray (optional) */
+    };
+    vx_node node = tivxCreateNodeByKernelName(graph,
+                                           TIVX_KERNEL_WRITE_RAW_IMAGE_HDR_NAME,
+                                           prms,
+                                           dimof(prms));
+    return node;
+}
+
 VX_API_ENTRY vx_node VX_API_CALL tivxWriteTensorNode(vx_graph   graph,
                                                      vx_tensor  in_tensor,
                                                      vx_array   file_path,

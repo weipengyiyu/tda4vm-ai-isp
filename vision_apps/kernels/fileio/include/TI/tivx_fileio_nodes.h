@@ -129,6 +129,27 @@ VX_API_ENTRY vx_node VX_API_CALL tivxWriteRawImageNode(vx_graph   graph,
                                                        vx_array   file_path,
                                                        vx_array   file_prefix);
 
+/*! \brief Creates a tivx_raw_image file write Node with HDR transpose output.
+ *
+ * Node accepts a vx_image and optional parameters of path and file name
+ * prefix and writes the contents of the vx_image to a file.
+ *
+ * Also performs frame-channel transpose on output ObjectArray:
+ *   Input:  [exp0_ch0, exp1_ch0, exp2_ch0, exp0_ch1, exp1_ch1, exp2_ch1, ...]
+ *   Output: [exp0_ch0, exp0_ch1, exp0_ch2, exp1_ch0, exp1_ch1, exp1_ch2, ...]
+ *
+ * \param [in] graph             The reference to the graph.
+ * \param [in] in_raw_image      input raw image
+ * \param [out] out_hdr          output ObjectArray after frame-channel transpose (optional, can be NULL)
+ *
+ * \ingroup group_vision_apps_kernels_fileio
+ *
+ * \retval vx_node A node reference. Any possible errors preventing a successful creation should be checked using <tt>vxGetStatus</tt>
+ */
+VX_API_ENTRY vx_node VX_API_CALL tivxWriteRawImageHdrNode(vx_graph   graph,
+                                                       tivx_raw_image   in_raw_image,
+                                                       tivx_raw_image   out_hdr_raw_image);
+
 /*! \brief Creates a vx_tensor file write Node.
  *
  * Node accepts a vx_image and optional parameters of path and file name

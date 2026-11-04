@@ -9,6 +9,7 @@ CSOURCES    := vx_kernels_fileio_target.c
 CSOURCES    += vx_fileio_write_array_target.c
 CSOURCES    += vx_fileio_write_image_target.c
 CSOURCES    += vx_fileio_write_raw_image_target.c
+CSOURCES    += vx_fileio_write_raw_image_hdr_target.c
 CSOURCES    += vx_fileio_write_tensor_target.c
 CSOURCES    += vx_fileio_write_user_data_object_target.c
 

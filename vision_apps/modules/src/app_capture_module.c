@@ -187,6 +187,8 @@ static vx_status create_capture_output(vx_context context, CaptureObj *captureOb
         tivx_raw_image raw_image = tivxCreateRawImage(context, &sensorParams->sensorInfo.raw_params);
         status = vxGetStatus((vx_reference)raw_image);
 
+        tivx_raw_image raw_image_hdr = tivxCreateRawImage(context, &sensorParams->sensorInfo.raw_params);
+        status = vxGetStatus((vx_reference)raw_image_hdr);
         if(status == VX_SUCCESS)
         {
             for(q = 0; q < bufq_depth; q++)
@@ -207,8 +209,15 @@ static vx_status create_capture_output(vx_context context, CaptureObj *captureOb
 
                     vxSetReferenceName((vx_reference)captureObj->raw_image_arr[q], name);
                 }
+                captureObj->hdr_image_arr[q] = vxCreateObjectArray(context, (vx_reference)raw_image_hdr, sensorObj->num_cameras_enabled * 3);
+                status = vxGetStatus((vx_reference)captureObj->hdr_image_arr[q]);
+                if(status != VX_SUCCESS)
+                {
+                    printf("[CAPTURE-MODULE] Unable to create HDR transpose output ObjectArray for writing capture output! \n");
+                }
             }
             tivxReleaseRawImage(&raw_image);
+            tivxReleaseRawImage(&raw_image_hdr);
         }
         else
         {
@@ -577,9 +586,10 @@ vx_status app_create_graph_capture_write_output(vx_graph graph, CaptureObj *capt
 
     if(0 == captureObj->capture_format)
     {
+        #if 0
         tivx_raw_image raw_img = (tivx_raw_image)vxGetObjectArrayItem(captureObj->raw_image_arr[0], 0);
-        captureObj->write_node = tivxWriteRawImageNode(graph, raw_img, captureObj->file_path, captureObj->file_prefix);
-        tivxReleaseRawImage(&raw_img);
+        captureObj->write_node = tivxWriteRawImageNode(
+            graph, raw_img, captureObj->file_path, captureObj->file_prefix); 
 
         status = vxGetStatus((vx_reference)captureObj->write_node);
         if(status == VX_SUCCESS)
@@ -594,6 +604,26 @@ vx_status app_create_graph_capture_write_output(vx_graph graph, CaptureObj *capt
         {
             printf("[CAPTURE-MODULE] Unable to create RAW image write node! \n");
         }
+        #else
+        tivx_raw_image raw_img = (tivx_raw_image)vxGetObjectArrayItem(captureObj->raw_image_arr[0], 0);
+        captureObj->out_hdr_raw_image = (tivx_raw_image)vxGetObjectArrayItem(captureObj->hdr_image_arr[0], 0);
+        captureObj->write_node = tivxWriteRawImageHdrNode(graph, raw_img, captureObj->out_hdr_raw_image);  
+
+        status = vxGetStatus((vx_reference)captureObj->write_node);
+        if(status == VX_SUCCESS)
+        {
+            vxSetReferenceName((vx_reference)captureObj->write_node, "capture_write_node");
+            vxSetNodeTarget(captureObj->write_node, VX_TARGET_STRING, TIVX_TARGET_MPU_0);
+
+            vx_bool replicate[] = { vx_true_e, vx_true_e};
+            vxReplicateNode(graph, captureObj->write_node, replicate, 2);
+        }
+        else
+        {
+            printf("[CAPTURE-MODULE] Unable to create RAW image write node! \n");
+        }
+
+        #endif
     }
     else
     {

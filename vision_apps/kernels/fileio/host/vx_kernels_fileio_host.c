@@ -73,12 +73,14 @@ static uint32_t gIsFileIOKernelsLoad = 0u;
 vx_status tivxAddKernelWriteArray(vx_context context);
 vx_status tivxAddKernelWriteImage(vx_context context);
 vx_status tivxAddKernelWriteRawImage(vx_context context);
+vx_status tivxAddKernelWriteRawImageHdr(vx_context context);
 vx_status tivxAddKernelWriteTensor(vx_context context);
 vx_status tivxAddKernelWriteUserDataObject(vx_context context);
 
 vx_status tivxRemoveKernelWriteArray(vx_context context);
 vx_status tivxRemoveKernelWriteImage(vx_context context);
 vx_status tivxRemoveKernelWriteRawImage(vx_context context);
+vx_status tivxRemoveKernelWriteRawImageHdr(vx_context context);
 vx_status tivxRemoveKernelWriteTensor(vx_context context);
 vx_status tivxRemoveKernelWriteUserDataObject(vx_context context);
 
@@ -86,6 +88,7 @@ static Tivx_Host_Kernel_List  gTivx_host_kernel_list[] = {
     {&tivxAddKernelWriteArray, &tivxRemoveKernelWriteArray},
     {&tivxAddKernelWriteImage, &tivxRemoveKernelWriteImage},
     {&tivxAddKernelWriteRawImage, &tivxRemoveKernelWriteRawImage},
+    {&tivxAddKernelWriteRawImageHdr, &tivxRemoveKernelWriteRawImageHdr},
     {&tivxAddKernelWriteTensor, &tivxRemoveKernelWriteTensor},
     {&tivxAddKernelWriteUserDataObject, &tivxRemoveKernelWriteUserDataObject},
 };

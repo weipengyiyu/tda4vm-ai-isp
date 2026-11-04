@@ -197,6 +197,7 @@ static vx_status VX_CALLBACK tivxKernelWriteRawImageCreate
   inst_id++;
   tivxSetTargetKernelInstanceContext(kernel, prms,  sizeof(tivxWriteRawImageParams));
 
+  printf("Input Image handle %d created................ch_num = %d\n", inst_id, prms->ch_num);
   return(VX_SUCCESS);
 }
 
@@ -239,6 +240,7 @@ static vx_status VX_CALLBACK tivxKernelWriteRawImageProcess
     vx_status status = VX_SUCCESS;
     uint32_t row_index = 0;
     uint32_t imgaddr_stride = 0;
+    static uint32_t cnt = 0;
 
     tivxWriteRawImageParams *prms = NULL;
 
@@ -287,6 +289,7 @@ static vx_status VX_CALLBACK tivxKernelWriteRawImageProcess
         if(prms->frame_counter == prms->cmd.start_frame)
             prms->skip_counter = 0;
 
+        cnt++;
         if((prms->frame_counter >= prms->cmd.start_frame) &&
            (prms->frame_counter < (prms->cmd.start_frame + (prms->cmd.num_frames * (prms->cmd.num_skip + 1)))) &&
            (prms->skip_counter == 0))
@@ -325,7 +328,7 @@ static vx_status VX_CALLBACK tivxKernelWriteRawImageProcess
 
                 sprintf(file_name, "%s/%s_%dx%d_%dbpp_exp%d_ch_%d_%08d.raw", file_path, file_prefix, width, height, 8*BPP, exp_id, prms->ch_num, prms->frame_counter);
 
-                printf("Writing %s ..\n", file_name);
+                printf("Writing %s ..exp_id = %d .. num_exposures = %d .. cnt = %d .. frame_counter = %d .. skip_counter = %d .. ch_num = %d\n", file_name, exp_id, in_raw_img_desc->params.num_exposures, cnt, prms->frame_counter, prms->skip_counter, prms->ch_num);
 
 #ifdef WRITE_FILE_OUTPUT
                 FILE *fp = fopen(file_name, "wb");

@@ -68,12 +68,14 @@
 void tivxAddTargetKernelWriteArray(void);
 void tivxAddTargetKernelWriteImage(void);
 void tivxAddTargetKernelWriteRawImage(void);
+void tivxAddTargetKernelWriteRawImageHdr(void);
 void tivxAddTargetKernelWriteTensor(void);
 void tivxAddTargetKernelWriteUserDataObject(void);
 
 void tivxRemoveTargetKernelWriteArray(void);
 void tivxRemoveTargetKernelWriteImage(void);
 void tivxRemoveTargetKernelWriteRawImage(void);
+void tivxRemoveTargetKernelWriteRawImageHdr(void);
 void tivxRemoveTargetKernelWriteTensor(void);
 void tivxRemoveTargetKernelWriteUserDataObject(void);
 
@@ -81,6 +83,7 @@ static Tivx_Target_Kernel_List  gTivx_target_kernel_list[] = {
     {&tivxAddTargetKernelWriteArray, &tivxRemoveTargetKernelWriteArray},
     {&tivxAddTargetKernelWriteImage, &tivxRemoveTargetKernelWriteImage},
     {&tivxAddTargetKernelWriteRawImage, &tivxRemoveTargetKernelWriteRawImage},
+    {&tivxAddTargetKernelWriteRawImageHdr, &tivxRemoveTargetKernelWriteRawImageHdr},
     {&tivxAddTargetKernelWriteTensor, &tivxRemoveTargetKernelWriteTensor},
     {&tivxAddTargetKernelWriteUserDataObject, &tivxRemoveTargetKernelWriteUserDataObject},
 };

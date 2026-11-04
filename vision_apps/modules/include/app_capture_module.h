@@ -98,6 +98,9 @@ typedef struct {
 
     /*! Capture node object array output */
     vx_object_array raw_image_arr[APP_MODULES_MAX_BUFQ_DEPTH];
+    vx_object_array hdr_image_arr[APP_MODULES_MAX_BUFQ_DEPTH];
+
+    tivx_raw_image out_hdr_raw_image;
 
     /*! Capture node graph parameter index */
     vx_int32 graph_parameter_index;
